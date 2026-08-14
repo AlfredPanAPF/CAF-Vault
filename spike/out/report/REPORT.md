@@ -131,6 +131,30 @@ A couple of hours of the three of us confirming labels turns these into real eva
 sets — the design calls this the highest-leverage early investment, and it's now a
 review task, not a build task.
 
+## Addendum (same day): harness fixes applied
+
+The three cheap fixes from the findings above are done and verified:
+
+1. **Exhibit discovery by document type.** `fetch_edgar.py` now reads the filing
+   index page's Type column (EX-99.*) instead of matching filenames. Verified on the
+   AMD Q2 8-K: it now finds the press release (`q22026991.htm`) and earnings slides
+   the filename regex missed. (Corpus not re-fetched — this run's claims stay tied
+   to the text they were extracted from.)
+2. **Per-mention blocking with document context.** `resolve_block.py` rewritten:
+   resolution runs per (doc, surface) with filer coreference ("the Company" → the
+   filer), filer-initials ("CBI" in an STZ filing), filer-in-candidates preference,
+   a seed alias table (`corpus/ref/aliases.json`: Google→Alphabet, Meta, TSMC…),
+   and a hook for extraction-emitted defined terms. Blocking auto-resolution went
+   from 24% of surfaces to **32% of mentions**, and the "Constellation" collision
+   now resolves correctly per document (filer_context tier) instead of being
+   structurally unresolvable.
+3. **Defined-term capture.** `prompts/extraction.md` now requires a `defined_terms`
+   map (the "'CBI' means Constellation Brands" pattern filings always contain);
+   the resolver consumes it. Takes effect on the next extraction run.
+
+Still open from the list: GLEIF/foreign-registry seed (the 172 non-SEC entities),
+which is a data acquisition task, not a code fix.
+
 ## Recommended next steps
 
 1. Human pass over the two eval seed files (hours, not days).

@@ -9,6 +9,10 @@ people in company roles, products, securities, and deals — and nothing it does
 ```json
 {
   "doc_id": "<given>",
+  "defined_terms": {
+    "CBI": "Constellation Brands, Inc.",
+    "the Company": "Constellation Brands, Inc."
+  },
   "mentions": [
     {"surface": "Nvidia", "type": "company", "count": 12},
     {"surface": "Jensen Huang", "type": "person", "count": 2}
@@ -30,6 +34,10 @@ people in company roles, products, securities, and deals — and nothing it does
 
 ## Field rules
 
+- **defined_terms**: every shorthand the document itself defines — `("CBI")`,
+  `(the "Company")`, `"X" means Y` — mapped to the full legal name. Filings almost
+  always define the filer this way; capture it. Empty object if none. Downstream
+  entity resolution uses this map, so it matters more than it looks.
 - **mentions**: every distinct company/person/product/security/location surface form,
   with type (`company | person | product | security | location | org_other`) and
   rough occurrence count. Include tickers as their own surfaces.

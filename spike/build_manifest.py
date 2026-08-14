@@ -31,6 +31,7 @@ def main():
             "title": header.get("title", f.stem),
             "published": header.get("published", ""),
             "sector": header.get("sector", ""),
+            "ticker": header.get("ticker", ""),
             "chars": sum(len(l) for l in body),
         })
     MANIFEST.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
