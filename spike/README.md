@@ -18,6 +18,7 @@ Three sectors: Tech & AI, Energy, F&B (watchlist in `corpus/ref/watchlist.json`)
 uv run parse_articles.py          # raw/articles/*.html -> text/
 uv run fetch_edgar.py             # EDGAR 8-K + exhibits -> text/
 uv run fetch_podcasts.py -n 3     # download + transcribe episodes -> text/
+uv run fetch_gleif.py             # GLEIF golden copy -> corpus/ref/gleif.sqlite (~730MB)
 uv run build_manifest.py          # text/*.txt -> corpus/manifest.jsonl
 # extraction: agents apply prompts/extraction.md to each manifest doc,
 #             writing out/claims/<doc_id>.json

@@ -152,8 +152,42 @@ The three cheap fixes from the findings above are done and verified:
    map (the "'CBI' means Constellation Brands" pattern filings always contain);
    the resolver consumes it. Takes effect on the next extraction run.
 
-Still open from the list: GLEIF/foreign-registry seed (the 172 non-SEC entities),
-which is a data acquisition task, not a code fix.
+## Addendum 2 (same day): GLEIF seed wired in
+
+The GLEIF LEI golden copy (3.4M legal entities worldwide + 645K alternate names,
+free download) now backs the resolver as a local sqlite lookup
+(`fetch_gleif.py` → `corpus/ref/gleif.sqlite`, ~730MB, gitignored, re-runnable).
+GLEIF tiers run after SEC exact matching and before SEC fuzzy guessing.
+
+Results on the same 749 mentions:
+
+| Stage | Auto-resolved |
+|---|---|
+| Original per-surface blocking (SEC only) | 24% of surfaces |
+| Per-mention + filer context + aliases | 32% of mentions |
+| + GLEIF tiers | **42% of mentions** |
+
+Kering, Airbus, and other foreign issuers now resolve directly (`gleif_exact`);
+Aston Martin, Eni, Vestas, Tencent, Gucci land in the ambiguous queue with the
+*correct* candidates present, which is what adjudication is for.
+
+Two false positives surfaced during this work and drove precision guards:
+
+- **"BYD" auto-resolved to Boyd Gaming** (its NYSE ticker) when the podcast meant
+  the Chinese carmaker. Ticker matches now require the registrant's name to
+  appear in the document text, else they demote to ambiguous with GLEIF
+  candidates attached. Genuinely famous acronym-names (AMD, IBM) live in the
+  alias seed instead.
+- **"Cursor" auto-resolved to Cursor S.L.**, a Spanish company with that literal
+  legal name. Single-token GLEIF stripped/prefix matches never auto-resolve now —
+  against 3.4M global entities, common-word names always collide somewhere.
+
+Both are instances of the design's own rule (§12): a missed match is recoverable,
+a bad merge poisons queries. The growth in the ambiguous queue (52 → 120 mentions)
+is the funnel working — cheap adjudication absorbs it.
+
+Still open: nothing from the fix list. Remaining spike task is the human pass over
+`eval/`.
 
 ## Recommended next steps
 
