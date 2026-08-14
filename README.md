@@ -20,9 +20,19 @@ spike/      phase-0 throwaway spike: real docs through extraction + ER,
 
 ## Status
 
-Phase 0 (spike) — validating extraction and entity-resolution quality on ~100 real
-documents across three sectors (Tech & AI, Energy, F&B) before building the
-vertical slice. See `spike/README.md`.
+Phase 1 (vertical slice) — the pipeline runs end to end: connectors (EDGAR,
+podcasts, manual upload) → event envelope with dedup + lineage → LLM extraction
+to claims → per-mention entity resolution (SEC + GLEIF + LLM adjudication) →
+edge materialization with decay → attribute-join discovery → webapp.
+
+```
+uv run graph migrate && uv run graph seed    # once
+uv run graph run                             # one full cycle
+uv run graph serve                           # webapp on :8642
+uv run graph status                          # pipeline state
+```
+
+Phase 0 spike (validation results that shaped this): `spike/README.md`.
 
 ## Phase-1 gates (from the design, §12)
 

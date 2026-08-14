@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
+var/
+.pytest_cache/
 
 # spike working data — raw/derived corpus stays out of git
 spike/corpus/raw/
