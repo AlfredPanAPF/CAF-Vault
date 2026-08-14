@@ -1,10 +1,18 @@
-"""Podcast connector: live RSS -> enclosure mp3 -> local mlx-whisper transcript.
+"""Podcast connector: live RSS -> enclosure mp3 -> local whisper transcript.
+
+ASR engine is picked via CAF_ASR: "auto" (default; mlx on Apple Silicon,
+faster-whisper elsewhere), "mlx" (uvx mlx-whisper subprocess), "faster-whisper"
+(python API, CPU int8 large-v3; model cache honors HF_HOME), or "off" (skip
+podcast ingestion entirely, with a log line).
 
 No diarization in v0 — transcripts are plain text. The design's
 speakers-are-entities step needs pyannote later.
 """
+import os
+import platform
 import re
 import subprocess
+import sys
 import tempfile
 from email.utils import parsedate_to_datetime
 from html import unescape
@@ -19,9 +27,18 @@ FEEDS = {
     "aidailybrief": "https://anchor.fm/s/f7cac464/podcast/rss",
 }
 MODEL = "mlx-community/whisper-large-v3-turbo"
+FW_MODEL = "large-v3"
 # CDNs (Acast et al.) 403 the default requests UA
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
+
+
+def asr_engine() -> str:
+    eng = (os.environ.get("CAF_ASR") or "auto").strip().lower()
+    if eng == "auto":
+        return ("mlx" if sys.platform == "darwin" and platform.machine() == "arm64"
+                else "faster-whisper")
+    return eng
 
 
 def episodes(rss_text: str):
@@ -35,19 +52,37 @@ def episodes(rss_text: str):
         yield unescape(title.group(1).strip()), date, unescape(enc.group(1))
 
 
-def transcribe(mp3: Path) -> str:
-    tmp = mp3.parent / "tx"
-    tmp.mkdir(exist_ok=True)
-    subprocess.run(
-        ["uvx", "--from", "mlx-whisper", "mlx_whisper", str(mp3),
-         "--model", MODEL, "--output-dir", str(tmp), "--output-format", "txt"],
-        check=True,
-    )
-    return (tmp / (mp3.stem + ".txt")).read_text(encoding="utf-8")
+_fw_model = None  # loaded once per process; large-v3 int8 is ~1.5GB resident
+
+
+def transcribe(mp3: Path, engine: str | None = None) -> str:
+    engine = engine or asr_engine()
+    if engine == "mlx":
+        tmp = mp3.parent / "tx"
+        tmp.mkdir(exist_ok=True)
+        subprocess.run(
+            ["uvx", "--from", "mlx-whisper", "mlx_whisper", str(mp3),
+             "--model", MODEL, "--output-dir", str(tmp), "--output-format", "txt"],
+            check=True,
+        )
+        return (tmp / (mp3.stem + ".txt")).read_text(encoding="utf-8")
+    if engine == "faster-whisper":
+        # lazy import — the dep is optional (pip install ".[asr]")
+        global _fw_model
+        from faster_whisper import WhisperModel
+        if _fw_model is None:
+            _fw_model = WhisperModel(FW_MODEL, device="cpu", compute_type="int8")
+        segments, _info = _fw_model.transcribe(str(mp3))
+        return "".join(seg.text for seg in segments).strip()
+    raise ValueError(f"unknown CAF_ASR engine: {engine!r}")
 
 
 def poll(con, feeds=None, episodes_per_feed=2):
     counts = {"new": 0, "duplicate": 0, "errors": 0}
+    engine = asr_engine()
+    if engine == "off":
+        print("podcast poll: CAF_ASR=off — skipping podcast ingestion")
+        return counts
     for feed in (list(feeds) if feeds else list(FEEDS)):
         url = FEEDS[feed]
         try:
@@ -70,8 +105,8 @@ def poll(con, feeds=None, episodes_per_feed=2):
                     audio = requests.get(enc_url, timeout=180, headers=HEADERS)
                     audio.raise_for_status()
                     mp3.write_bytes(audio.content)
-                    print(f"transcribing: {title}")
-                    text = transcribe(mp3)
+                    print(f"transcribing ({engine}): {title}")
+                    text = transcribe(mp3, engine)
             except Exception as e:
                 print(f"error {feed} '{title}': {e}")
                 counts["errors"] += 1

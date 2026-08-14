@@ -1,0 +1,25 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+**/__pycache__
+**/*.pyc
+.DS_Store
+**/.DS_Store
+var/
+uv.lock
+docs/
+tests/
+
+# spike working data — only spike/corpus/ref/*.json is COPY'd into the image
+spike/corpus/raw/
+spike/corpus/text/
+spike/corpus/manifest.jsonl
+spike/out/
+spike/eval/
+
+# GLEIF golden copy — ~1.3GB combined; fetched at runtime into the volume
+spike/corpus/ref/gleif.sqlite
+spike/corpus/ref/gleif_lei2.csv.zip
+*.mp3
+*.m4a

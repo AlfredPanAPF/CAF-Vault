@@ -12,7 +12,16 @@ dependencies = [
     "uvicorn",
     "jinja2",
     "anthropic",
+    # Claude Code subscription engine — pinned to the version Filter runs in
+    # production; the wheel bundles a standalone CLI binary (no node needed).
+    "claude-agent-sdk==0.2.128",
+    "anyio",
 ]
+
+[project.optional-dependencies]
+# CPU whisper for Linux/Docker (CAF_ASR=faster-whisper); macOS dev uses
+# mlx-whisper via uvx and doesn't need this.
+asr = ["faster-whisper"]
 
 [project.scripts]
 graph = "graph.cli:main"

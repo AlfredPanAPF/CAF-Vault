@@ -6,9 +6,10 @@ DictLoader, self-contained CSS, no external assets. Run with `graph serve`
 (uvicorn graph.webapp:app).
 """
 import json
+import os
 import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import DictLoader, Environment, select_autoescape
 
@@ -65,9 +66,9 @@ code { background: #f0f0ec; padding: 1px 5px; border-radius: 4px; font-size: 13p
 <body>
 <header>
 <nav>
-  <a class="brand" href="/">CAF graph</a>
-  <a href="/">entities</a>
-  <a href="/hypotheses">hypotheses</a>
+  <a class="brand" href="{{ root }}/">CAF graph</a>
+  <a href="{{ root }}/">entities</a>
+  <a href="{{ root }}/hypotheses">hypotheses</a>
 </nav>
 </header>
 <main>
@@ -81,7 +82,7 @@ INDEX = """{% extends "base.html" %}
 {% block title %}Entities — CAF graph{% endblock %}
 {% block body %}
 <h1>Entities</h1>
-<form class="search" method="get" action="/">
+<form class="search" method="get" action="{{ root }}/">
   <input type="search" name="q" value="{{ q }}" placeholder="search canonical name or alias">
   <button>Search</button>
 </form>
@@ -91,7 +92,7 @@ INDEX = """{% extends "base.html" %}
 <tbody>
 {% for e in entities %}
 <tr>
-  <td><a href="/entity/{{ e.entity_id }}">{{ e.canonical_name }}</a></td>
+  <td><a href="{{ root }}/entity/{{ e.entity_id }}">{{ e.canonical_name }}</a></td>
   <td><span class="tag">{{ e.kind }}</span></td>
   <td class="num">{{ e.claims }}</td>
 </tr>
@@ -128,9 +129,9 @@ ENTITY = """{% extends "base.html" %}
 <tbody>
 {% for c in claims %}
 <tr>
-  <td>{% if c.subject_entity %}<a href="/entity/{{ c.subject_entity }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_surface or "—" }}{% endif %}</td>
+  <td>{% if c.subject_entity %}<a href="{{ root }}/entity/{{ c.subject_entity }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_surface or "—" }}{% endif %}</td>
   <td>{{ c.predicate_raw }}{% if c.status != 'asserted' %} <span class="tag warn">{{ c.status }}</span>{% endif %}</td>
-  <td>{% if c.object_entity %}<a href="/entity/{{ c.object_entity }}">{{ c.object_name }}</a>{% elif c.literal_pretty is not none %}<code>{{ c.literal_pretty }}</code>{% else %}{{ c.object_surface or "—" }}{% endif %}</td>
+  <td>{% if c.object_entity %}<a href="{{ root }}/entity/{{ c.object_entity }}">{{ c.object_name }}</a>{% elif c.literal_pretty is not none %}<code>{{ c.literal_pretty }}</code>{% else %}{{ c.object_surface or "—" }}{% endif %}</td>
   <td>{% if c.evidence_quote %}<span class="quote">“{{ c.evidence_quote }}”</span>{% else %}<span class="muted">—</span>{% endif %}</td>
   <td class="num">{{ "%.2f"|format(c.confidence) }}</td>
   <td>{{ c.connector }} · {{ c.source_name }}</td>
@@ -161,7 +162,7 @@ EDGES = """<div class="tablewrap">
 {% for e in edges %}
 <tr>
   <td>{% if e.src == ent.entity_id %}{{ e.predicate }} →{% else %}← {{ e.predicate }}{% endif %}</td>
-  <td><a href="/entity/{{ e.peer_id }}">{{ e.peer_name }}</a></td>
+  <td><a href="{{ root }}/entity/{{ e.peer_id }}">{{ e.peer_name }}</a></td>
   <td class="num">{{ e.claim_count }}</td>
   <td class="num">{{ e.relevance }}</td>
   <td>{% if e.archived %}<span class="tag warn">archived</span>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -187,7 +188,7 @@ HYPOTHESES = """{% extends "base.html" %}
 {% for h in hypotheses %}
 <tr>
   <td>{{ h.type }}</td>
-  <td>{% for sid, name in h.subject_links %}<a href="/entity/{{ sid }}">{{ name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+  <td>{% for sid, name in h.subject_links %}<a href="{{ root }}/entity/{{ sid }}">{{ name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
   <td><span class="tag">{{ h.state }}</span></td>
   <td>{{ h.rationale or "—" }}</td>
   <td class="num">{{ h.created_at|dt }}</td>
@@ -290,21 +291,31 @@ def create_app():
     env = Environment(loader=DictLoader(TEMPLATES),
                       autoescape=select_autoescape(["html"]))
     env.filters["dt"] = fmt_dt
-    app = FastAPI(title="CAF graph")
+    # Behind a prefix-stripping proxy (nginx location /vault/ -> /), root_path
+    # puts the public prefix back into generated hrefs. Local dev: env unset,
+    # root_path "", output byte-identical to before.
+    app = FastAPI(title="CAF graph",
+                  root_path=os.environ.get("CAF_ROOT_PATH", ""))
 
-    def render(name, **ctx):
+    def render(request, name, **ctx):
+        ctx["root"] = request.scope.get("root_path", "")
         return HTMLResponse(env.get_template(name).render(**ctx))
 
+    @app.get("/health")
+    def health():
+        # liveness only — deliberately no DB touch
+        return {"ok": True}
+
     @app.get("/", response_class=HTMLResponse)
-    def index(q: str = ""):
+    def index(request: Request, q: str = ""):
         q = q.strip()
         sql = INDEX_SQL.format(where=INDEX_WHERE if q else "")
         with db.connect() as con:
             entities = con.execute(sql, {"pat": f"%{q}%"} if q else {}).fetchall()
-        return render("index.html", q=q, entities=entities)
+        return render(request, "index.html", q=q, entities=entities)
 
     @app.get("/entity/{entity_id}", response_class=HTMLResponse)
-    def entity_page(entity_id: uuid.UUID):
+    def entity_page(request: Request, entity_id: uuid.UUID):
         with db.connect() as con:
             ent = con.execute("select * from entity where entity_id=%s",
                               (entity_id,)).fetchone()
@@ -320,11 +331,11 @@ def create_app():
                                    if c["object_literal"] is not None else None)
         asserted = [e for e in edges if e["origin"] == "asserted"]
         inferred = [e for e in edges if e["origin"] == "inferred"]
-        return render("entity.html", ent=ent, aliases=aliases, claims=claims,
-                      asserted=asserted, inferred=inferred)
+        return render(request, "entity.html", ent=ent, aliases=aliases,
+                      claims=claims, asserted=asserted, inferred=inferred)
 
     @app.get("/hypotheses", response_class=HTMLResponse)
-    def hypotheses_page():
+    def hypotheses_page(request: Request):
         with db.connect() as con:
             hypotheses = con.execute(HYPOTHESES_SQL).fetchall()
             ids = sorted({sid for h in hypotheses for sid in h["subjects"]})
@@ -336,7 +347,7 @@ def create_app():
         for h in hypotheses:
             h["subject_links"] = [(sid, names.get(sid, str(sid)[:8]))
                                   for sid in h["subjects"]]
-        return render("hypotheses.html", hypotheses=hypotheses)
+        return render(request, "hypotheses.html", hypotheses=hypotheses)
 
     return app
 
