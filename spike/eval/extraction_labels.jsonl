@@ -1,0 +1,1101 @@
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 0, "verdict": "distorted", "issues": ["wrong_stance"], "note": "Document says the proposed financing platform 'would back $500bn' (a plan pledged this week), extracted as stated fact that Nvidia backs the financing; the quote also silently drops 'in global asset management' mid-sentence."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": "Quote condenses 'wealthy and wealthy-ish customers in to fund' to 'wealthy customers to fund', but the claim's meaning is unchanged."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": ["missing_attribution"], "note": "Quote is verbatim and the 'may' hedge is preserved in the predicate, but the statement is Huang's ('chief executive Jensen Huang says') and no attributed_to qualifier is set."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": "Quote verbatim; October of the publication year (2026) is a reasonable resolution of 'in October'."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": "Verbatim; context baseline (since end of 2024) is omitted but the figure and direction are correct."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": "Verbatim; 'in May' resolves to 2026-05 given the 2026-08-13 publication date, and stance 'reported' is correct."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": "Verbatim; 'nearly $8tn' extracted as 8e12 is a minor rounding, and the Bloomberg sourcing is omitted but the document asserts the figure."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 10, "verdict": "distorted", "issues": ["overreach"], "note": "The quote silently drops 'by the private credit industry': the document scopes the $200bn to private-credit loans, while the claim broadens it to all loans made to AI-related borrowers."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": "Quote verbatim; $600bn is direct arithmetic (triple of the stated $200bn) and the stance is correctly marked speculative."}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "article_everybody-loves-nvidia-but-then-they-can-t-afford-not-to", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": "Document states a 20-25 per cent range; 0.225 is the midpoint encoding, within the stated range, and stance/attribution to Bernstein analysts is correct."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 8, "verdict": "distorted", "issues": ["wrong_stance"], "note": "Document hedges: 'Kering appears to have been able to cut the price... while still increasing the company's operating margin' \u2014 extracted as stance 'stated' rather than a hedged/apparent claim."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": ["missing_attribution"], "note": "The figure is attributed 'according to S&P Capital IQ' in the document but the claim carries stance 'stated' with no attribution."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": ["missing_attribution"], "note": "Same S&P Capital IQ attribution dropped; claim is stance 'stated' with no attributed_to."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 9, "verdict": "distorted", "issues": ["wrong_stance"], "note": "Document hedges with 'Kering appears to have been able to cut the price of some of its products'; extracted as stance 'stated' rather than the hedged/apparent claim."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 11, "verdict": "distorted", "issues": ["wrong_stance"], "note": "The margin increase sits inside the same hedged clause ('Kering appears to have been able to... while still increasing the company's operating margin'), so stance 'stated' overstates the text."}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_gucci-is-breaking-luxury-s-penny-pinching-taboo", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 2, "verdict": "distorted", "issues": ["bad_number", "overreach"], "note": "Document says net borrowings are 'more than four times' the \u00a3350mn value (i.e. >\u00a31.4bn, a derived floor); it never states \u00a31.4bn as the figure."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 5, "verdict": "distorted", "issues": ["overreach"], "note": "Document says Aston Martin borrowed 'up to \u00a3550mn'; the claim states the borrowed amount as exactly \u00a3550mn, dropping the 'up to' qualifier."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 9, "verdict": "distorted", "issues": ["overreach"], "note": "Document hedges heavily ('it seems bondholders might have been implicitly protected'); the flat predicate 'implicitly_protected_by' states speculation as fact, and 'reported' stance has no actual attributed source."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 10, "verdict": "distorted", "issues": ["missing_attribution", "overreach"], "note": "Evidence quote splices out 'according to a person familiar with the situation' without ellipsis (not verbatim), the attributed_to field is empty, and the hedged 'may have had more leeway' is flattened to 'had_leeway'."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": [], "note": "Minor: the 25 per cent recovery is conditional on 'absent the relocated assets', a condition the qualifiers omit."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": [], "note": "'Last year' resolves to 2025 given the 2026 publication date, matching valid_from."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "haiku", "claim_index": 16, "verdict": "distorted", "issues": [], "note": "Evidence quote is not verbatim: it omits 'to secure new financing' mid-sentence without ellipsis; the claim content itself matches the document."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": "as_of 2026-07 correctly resolves 'last month' from the 2026-08-13 publication date"}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": "document calls it 'a famous case'; covenant-dispute framing is supported by surrounding context about bond provisions"}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 10, "verdict": "distorted", "issues": ["overreach"], "note": "The document says 'In this case, though, the J Crew blocker wouldn't restrict...' \u2014 specific to Aston Martin's blocker; the claim states it as a general property of the J Crew blocker."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 12, "verdict": "distorted", "issues": ["overreach"], "note": "Document says Aston Martin 'may have had more leeway'; the predicate 'gained_leeway' drops the hedge and asserts the leeway as fact."}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": "as_of 2025 correctly resolves 'last year' from the 2026 publication date"}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_how-aston-martin-showed-bondholders-the-hard-shoulder", "tier": "sonnet", "claim_index": 20, "verdict": "not_material", "issues": [], "note": "The James Bond association is decorative color in the article's opening, not a substantive factual claim worth extracting."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": ["bad_date"], "note": "Quote and $15bn figure check out; minor: 'Monday' relative to the 2026-08-11 (Tuesday) publish date is 2026-08-10, so valid_from is off by one day."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": "Document says 'nearly 55 times forecast earnings'; extracting 55 is a fair reading."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": "Document qualifies with 'until recently', but the claim that capex was reined in is asserted."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": "$110bn is derived from 'roughly half' of $220bn; a reasonable, clearly hedged inference."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": [], "note": "'last year' relative to 2026 publication correctly resolved to 2025."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 15, "verdict": "distorted", "issues": ["overreach"], "note": "The 'Imagine Intel hits...' scenario is the columnist's hypothetical, not something Goldman modeled; Goldman only supplied the $20bn foundry estimate (already captured in claim 11), so making Goldman the modeling subject overreaches."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 16, "verdict": "distorted", "issues": ["overreach"], "note": "The data-centre-triples assumption is part of the article's own hypothetical scenario; nothing attributes it to Goldman Sachs."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 17, "verdict": "distorted", "issues": ["overreach"], "note": "The PCs-return-to-2021-peak assumption is the columnist's hypothetical, not a Goldman Sachs modeling assumption."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": [], "note": "Correctly marked speculative; part of the article's hypothetical scenario."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": [], "note": "Document says 'more than 12 times'; 12 as the extracted floor is acceptable and stance is speculative."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": ["missing_attribution"], "note": "The ~12x multiple for TSMC is implied by 'roughly where... TSMC... trade' and is attributed in the document to Visible Alpha, which the claim omits."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": ["missing_attribution"], "note": "Same as claim 23: the ~12x AMD multiple comes via Visible Alpha, which the claim does not credit."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 8, "verdict": "not_material", "issues": ["vague_predicate"], "note": "Extracted from the possessive descriptor 'Elon Musk's Tesla' \u2014 an incidental entity qualifier, not an assertion the document makes; should have been skipped."}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_intel-investors-are-banking-on-a-comeback-and-then-some", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": "Year 2026 for the January auction is inferred from the 2026-08-13 publication date, but the inference is safe in context."}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": ["vague_predicate"], "note": "Quote is real and meaning is preserved, but subject 'China' stands in for 'Chinese turbine suppliers' and the predicate/object carry little structure."}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 12, "verdict": "distorted", "issues": ["overreach"], "note": "The document's forecast is US-specific ('Even in the US ... 2026 onshore installations are set to be the highest in five years'); the claim drops the US scope, reading as a general onshore-installations forecast."}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "article_the-recovery-in-wind-energy-is-picking-up-speed", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": "Quote abbreviates 'billion' to 'B' vs the headline text, but the Guidance section states 'Revenue: $3.9B - $4.2B' and the $4.05B midpoint is correct."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 8, "verdict": "distorted", "issues": ["overreach", "missing_attribution"], "note": "The CEO quote says hyperscalers 'have validated and approved our power solutions', which is not the same as Bloom supplying them; the claim also drops attribution to KR Sridhar and marks stance 'stated'."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 13, "verdict": "distorted", "issues": [], "note": "Evidence quote is an unmarked splice: the document reads 'solid oxide fuel cell systems provide ultra-resilient, highly scalable onsite electricity for Fortune 500 customers around the world, including...'; the omitted words are dropped mid-sentence without ellipsis, though the claim substance is accurate."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 21, "verdict": "distorted", "issues": ["overreach"], "note": "Quote elides 'the' and 'due August 2025' from the document's 'debt exchange between the 2.5% Green Convertible Senior Notes due August 2025 and the 3% Green Convertible Senior Notes due June 2029'; the document describes a debt exchange that settled 2025-05-13 (in a non-GAAP adjustment explanation), not a direct statement that Bloom 'issued bonds'."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "haiku", "claim_index": 23, "verdict": "distorted", "issues": ["overreach", "missing_attribution"], "note": "The CEO quote says neoclouds, AI labs, and colocation operators 'have validated and approved' the power solutions; the claim upgrades this to 'has_customers' and drops attribution to KR Sridhar."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": "Guidance is forward-looking but the predicate raised_guidance_revenue frames the stated act of raising guidance, so stance 'stated' is acceptable."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": "Quote's $0.62 is confirmed as the diluted GAAP figure in the statements table (basic is $0.68), so the 'diluted' predicate is correct."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": "The $2,470,704 line sits in the long-term liabilities section (current recourse debt is $4,686), so the 'long-term' classification is correct."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": "Promotional executive quote, but correctly extracted as reported speech attributed to KR Sridhar and asserts a market-position status."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 26, "verdict": "not_material", "issues": [], "note": "Pure executive color commentary ('strongest in Bloom's history') restating metrics already extracted numerically; should have been skipped."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": [], "note": "Future-tense event, but the predicate will_host_conference_call encodes the announcement, which the document states."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": [], "note": "Quote is a flattened cover-page table row; all three elements (security, ticker BE, NYSE) appear in the securities-registered table."}
+{"doc_id": "filing_BE_8K_2026-07-28_050150", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": [], "note": "Quote splices around the intervening IRS EIN line in the flattened cover-page table, but the document does state Delaware as the jurisdiction of incorporation."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": "Doc says organic net sales were 'in line with last year'/'flat', consistent with value 0 percent."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 4, "verdict": "distorted", "issues": [], "note": "Evidence quote is altered: source reads 'General Mills announced that it expects to generate $3 billion...' \u2014 the quote silently drops 'announced that it'; the claim substance itself is asserted by the document."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": "Quote omits only the parenthetical '(3cora\u00e7\u00f5es)' from the source sentence; otherwise verbatim and accurate."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": "Gain qualifier matches doc's 'pre-tax gain of $1,046 million'."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": "valid_to 2024-11-30 falls within Q3 FY2025 (ended ~Feb 2025); acceptable approximation of 'during the third quarter of fiscal 2025'."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": "Record date July 10, 2026 confirmed in the continuation of the quoted sentence."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": [], "note": "Doc says 'approximately $101 million' of expected charges; qualifier drops 'approximately' but value is correct."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": [], "note": "All three guidance qualifiers match the outlined fiscal 2027 targets; the quote itself covers only the category-growth expectation."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": [], "note": "Quote reflects signature-block formatting; differences are whitespace/layout only."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 31, "verdict": "supported", "issues": [], "note": "Source has a mid-word line break ('compa\\nred'); difference is whitespace only."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "haiku", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 46, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 47, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 50, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 51, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 52, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 53, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 54, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 55, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 56, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 57, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 58, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 59, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 60, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 61, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 62, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 63, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 64, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 65, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 66, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 67, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 68, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 69, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 70, "verdict": "distorted", "issues": ["vague_predicate", "overreach"], "note": "The 80 percent in the document is the share of segment retail sales represented by dog and cat feeding, not a fraction of categories in which share was held; the claim's held_or_gained_share_in=80% structure (parallel to the 65%/90%/45% category-fraction claims) misstates what the number measures."}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 71, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 72, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 73, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 74, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 75, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 76, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 77, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 78, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 79, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_GIS_8K_2026-07-01_046337", "tier": "sonnet", "claim_index": 80, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": "Quote condenses the sentence by dropping the parenthetical '(Nasdaq: KHC) (\"Kraft Heinz\" or the \"Company\") today' but meaning is unchanged."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 7, "verdict": "distorted", "issues": ["overreach", "vague_predicate"], "note": "Document only identifies Cahillane as 'CEO of Kraft Heinz' (a role held); it does not report an appointment event, so predicate 'appointed_ceo' overstates the text."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 8, "verdict": "distorted", "issues": ["overreach", "vague_predicate"], "note": "Signature block identifies Maciel as 'Executive Vice President and Global Chief Financial Officer' (role held); no appointment is reported, so 'appointed_...' overstates the text."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 13, "verdict": "distorted", "issues": ["overreach"], "note": "Document says brands are 'enjoyed by consumers in more than 40 countries', not that the company operates in approximately 40 countries; 'operates_in_countries' with approximate=true misreads both the relation and the 'more than' floor."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": [], "note": "Object value 2.06 is the midpoint of the stated $2.03-$2.09 range, which is preserved verbatim in the guidance_range qualifier."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": [], "note": "Quote lightly rewords 'expects an effective tax rate' as 'expected effective tax rate'; substance identical."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": [], "note": "Quote splices two adjacent sentences without ellipsis; content faithful to the document."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": [], "note": "Quote splices non-adjacent phrases ('driven by declines in meats and spoonables' comes two sentences later) but the causal claim matches the document; Easter timing shift in qualifiers is also in the text."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": [], "note": "Statement appears in a year-to-date capital return section; no YTD repurchases entails none in Q2, so the Q2 2026 period qualifier still holds."}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 46, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 47, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_KHC_8K_2026-08-05_000052", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 0, "verdict": "distorted", "issues": ["bad_number"], "note": "Document says $1,625 per share of Mandatory Convertible Preferred Stock (one thousand six hundred twenty-five dollars); the claim records value 1.625, a 1000x understatement from misreading the thousands comma as a decimal point."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 17, "verdict": "distorted", "issues": ["wrong_stance"], "note": "The document says Oracle 'expects to raise approximately $40 billion' in FY2027 \u2014 a forward-looking expectation extracted with stance 'stated' (and the 'approximately' hedge dropped from the literal)."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 18, "verdict": "distorted", "issues": ["bad_number"], "note": "The document guides a range of 27% to 29%; the object literal 28 is an invented midpoint that appears nowhere in the text, even though the qualifier preserves the range."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 19, "verdict": "distorted", "issues": ["bad_number"], "note": "The document guides 57-63% constant currency and 58-64% USD; the object literal 60.5 is a synthesized point value not stated in the document."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 25, "verdict": "distorted", "issues": ["wrong_stance", "overreach"], "note": "The document says the Oracle Health suite 'will soon include' the new AI Cerner system \u2014 a future plan extracted as present-tense includes_product with stance 'stated'."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 26, "verdict": "distorted", "issues": ["bad_number"], "note": "The document says growth is expected to reach 'double-digits' in fiscal 2027; encoding that as the specific literal 10 percent asserts a number the document never gives."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 27, "verdict": "distorted", "issues": ["vague_predicate"], "note": "The $75 billion covers both prepaid AND customer-supplied hardware portions of AI contracts; the predicate customer_prepayments_for_GPUs mislabels the whole amount as prepayments."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "haiku", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": "Predicate itself encodes the expectation ('expects_to_raise_financing'), so stance 'stated' correctly reflects the document stating the expectation."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": "Predicate encodes the expectation; document flatly states 'Oracle does not expect to issue additional debt in calendar year 2026.'"}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": "Document asserts 'will soon include' without hedging; predicate 'will_add_product_to' preserves the future framing."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": [], "note": "Correctly extracted with stance 'speculative' and attribution to Oracle for the 'We expect' forecast."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": [], "note": "Qualifier preserves the 'designed to enable' framing, though the triple structure (Oracle designed_to_enable AI clinical trial system) is slightly awkward."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": [], "note": "Qualifier preserves the document's 'intended to' hedge on the clean-energy characterization."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": [], "note": "Predicate 'claims_to_be' appropriately frames the company's self-characterization."}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_ORCL_8K_2026-06-10_265848", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": [], "note": "Object surface 'Bloom Energy' alone would overstate (Oracle sold Bloom Energy warrants, not the company), but the qualifier explicitly corrects this."}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 10, "verdict": "distorted", "issues": ["bad_number"], "note": "The swing line subfacility is stated as $1,200,000,000 (USD) for Euro-denominated borrowings; the extracted literal wrongly records the amount's currency as EUR."}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_PEP_8K_2026-05-22_065758", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 33, "verdict": "unsupported", "issues": [], "note": "The claim content is true per the document, but the evidence_quote is a reordered paraphrase not present in the text; the source reads 'In Canada, Meta announced a new 1GW data center to be built in Sturgeon County, Alberta, for which SLB has been selected as a delivery partner.'"}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 43, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "haiku", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": "Forward-looking guidance, but the predicate 'guided_capital_investment' encodes the expectation and the document states the guidance verbatim ('still expected to be approximately $2.5 billion')."}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": "Value -8727000000 mirrors the document's presentation convention 'Net Debt $(8,727)' (stated in millions); sign follows the source table."}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": [], "note": "Evidence quote covers the umbilical scope; the award by Eni North Ganal Limited to SLB OneSubsea is asserted in the immediately preceding sentence of the same bullet."}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 46, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 47, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 50, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 51, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 52, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 53, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 54, "verdict": "distorted", "issues": ["bad_number"], "note": "Claim asserts International revenue of $6,671M but the evidence_quote ('Revenue in North America of $2.24 billion increased 4% sequentially') is about North America and does not back the claim; the International figure ($6,671M, +3% seq, -3% YoY) appears only in the geography table elsewhere in the document."}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 55, "verdict": "supported", "issues": [], "note": "Quote covers value and sequential change; the 36% year-on-year increase is confirmed in the as-reported geography table."}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 56, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 57, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 58, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 59, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 60, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 61, "verdict": "supported", "issues": []}
+{"doc_id": "filing_SLB_8K_2026-07-24_315068", "tier": "sonnet", "claim_index": 62, "verdict": "supported", "issues": ["vague_predicate"], "note": "Predicate 'narrowed_by_conflict_disruption' with subject SLB and object Middle East is semantically murky; the underlying fact (first-half Middle East revenue decline from conflict-related disruptions) is asserted both in the CEO quote and in the company narrative."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": "Quote uses a marked ellipsis; both fragments appear verbatim and in order in the same sentence."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": [], "note": "Predicate frames the range as guidance, so stance 'stated' correctly describes the act of updating the outlook."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 13, "verdict": "unsupported", "issues": [], "note": "Quote is silently spliced: the document reads 'in the amount of $1.03 per issued and outstanding share of the Company's Class A Common Stock and $0.93 per issued and outstanding share...', so the string 'in the amount of $0.93 per issued and outstanding share' does not appear verbatim, even though the $0.93 Class 1 dividend itself is asserted in the document."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": [], "note": "Document says 'over 5%'; the qualifier 'what: over 5%' preserves this so the -5 value is acceptable."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 38, "verdict": "supported", "issues": [], "note": "Claim content matches the document, but the claim object itself is malformed JSON (stray 'value: 800e6}' line after qualifiers), which breaks strict parsing of the claims file."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 43, "verdict": "supported", "issues": [], "note": "Quote is a table-row read (commas added between cells); all three cells appear adjacent in the registration table."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 44, "verdict": "supported", "issues": [], "note": "Quote stitches a table header to its value cell; $2,433 reported net sales is in the highlights table."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 45, "verdict": "supported", "issues": [], "note": "Table header-to-cell read; $845 reported operating income is in the highlights table."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "haiku", "claim_index": 46, "verdict": "distorted", "issues": ["overreach"], "note": "The quote only supports continued build-out of the Veracruz brewery; the three-location object and 'invested_in' framing are assembled from the Defined Terms glossary entry for 'Brewery Projects', which the evidence quote does not back."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 13, "verdict": "distorted", "issues": ["overreach"], "note": "Document says 'Updates fiscal 2027 reported EPS outlook'; it never states the guidance was raised, and no prior guidance figure appears, so predicate 'raised_guidance' and qualifier 'from prior guidance' overstate the text."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": [], "note": "Evidence quote supports the 2% increase but not the $2,283.5 figure directly; the figure is asserted in the segment tables."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": "Evidence quote supports the 1.8% increase; the 113.3 figure is asserted in the Beer segment table."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": ["vague_predicate"], "note": "Content matches the document, but predicate 'ranked_dollar_share_gainer' mislabels what is a dollar-sales rank ('top 5 brand in dollar sales'), not a share-gainer rank."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": [], "note": "Document credits 'our wine portfolio' as the #2 dollar share gainer; subject 'Wine and Spirits' is a slight broadening but the qualifier preserves the wording."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 46, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 47, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 50, "verdict": "supported", "issues": [], "note": "Sourced from a forward-looking risk-factor bullet that presupposes the ownership and nomination rights as existing facts."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 51, "verdict": "supported", "issues": [], "note": "Sourced from a risk-factor bullet referencing 'our President and Chief Executive Officer transition' as a current matter."}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 52, "verdict": "supported", "issues": []}
+{"doc_id": "filing_STZ_8K_2026-06-30_000028", "tier": "sonnet", "claim_index": 53, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 3, "verdict": "distorted", "issues": ["missing_attribution"], "note": "The $1B amount sought comes from 'one source', not Bloomberg, and the chosen quote only supports the $40B valuation, not the $1B being sought."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": [], "note": "Quote lightly stitched ('Lovable. Who announced' -> 'Lovable announced') but substance is verbatim and accurate."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": [], "note": "Quote prefix altered ('They recorded' -> 'Nebius reported') but figures are verbatim and correct."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": [], "note": "Unit labeled 'percentage_points' where the doc says a relative 83% beat, but the value matches the text."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 19, "verdict": "distorted", "issues": [], "note": "Evidence quote is a fabricated sentence stitching two separate sentences ('Tencent has tripled their capex' and 'Tencent reported that they spent $7.8 billion...'); the claim itself is in the document."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 24, "verdict": "distorted", "issues": ["overreach"], "note": "Doc says Cursor was 'seeking a $50 billion valuation' (the round instead ended in a $60B acquisition); 'valued_at' and 'Series C' overstate the text."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 29, "verdict": "distorted", "issues": ["missing_attribution"], "note": "The line is from commentator Chubby's quoted tweet, not the host or Anthropic; the claim omits that attribution."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 31, "verdict": "distorted", "issues": [], "note": "Evidence quote describes Brin being out of the picture after 2019; the return is asserted in a different sentence ('he returned to frequent work at Google in 2023'), so the quote does not back the claim."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 37, "verdict": "distorted", "issues": ["bad_date", "subject_object_swapped"], "note": "The labs were briefed (not the Trump administration), and as_of 2026-08-06 cannot be 'last Tuesday' relative to the 2026-08-13 publication."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 40, "verdict": "distorted", "issues": [], "note": "Evidence quote fabricated by merging two sentences ('on the back of booming coding agent demand' belongs to the prior sentence, not the Bloomberg one); the underlying claim is only implied."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "haiku", "claim_index": 41, "verdict": "not_material", "issues": [], "note": "Host framing/commentary with no extractable factual content; should have been skipped."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 28, "verdict": "distorted", "issues": ["overreach"], "note": "Qualifier says 'slowest capex growth among the US hyperscaler group' but the document says 'Meta had the slowest capex in their group' - 'growth' is interpolated, not in the text."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 36, "verdict": "distorted", "issues": ["overreach"], "note": "Predicate 'expanding_model_testing_policy_to_cover' states an in-progress action, but the document says the White House 'is expected to expand the policy to cover open models in the coming months' - a forecast, not a current expansion."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 46, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 47, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 50, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 51, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 52, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 53, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 54, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 55, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 56, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 57, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 58, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 59, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 60, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 61, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 62, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 63, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 64, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 65, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 66, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 67, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 68, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 69, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 70, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 71, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 72, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 73, "verdict": "distorted", "issues": ["missing_attribution"], "note": "The quote 'Anthropic already has Fable 5.5 ready and just waiting to be released, that much is clear' is part of Chubby's quoted tweet, not the AI Daily Brief host's own assertion; attributed_to 'AI Daily Brief' is a misattribution."}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 74, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 75, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 76, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 77, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 78, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 79, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 80, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 81, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 82, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 83, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 84, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 85, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 86, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 87, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 88, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 89, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 90, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 91, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 92, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 93, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 94, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 95, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 96, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 97, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 98, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 99, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 100, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 101, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 102, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 103, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 104, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 105, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 106, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 107, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_aidailybrief_2026-08-13_grok-4-6-shows-how-fast-your-ai-options-are-expand", "tier": "sonnet", "claim_index": 108, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 3, "verdict": "distorted", "issues": ["subject_object_swapped"], "note": "The speaker of 'I'm the author of a new book, How to Win a Trade War, with Chad Bown' is host Samaya Keynes, not John Minnick, who is introduced as the guest immediately afterwards."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 7, "verdict": "distorted", "issues": ["bad_date"], "note": "valid_to 2001 contradicts the text elided by the ellipsis: 'and this, of course, continues to be the case in the post-WTO period'."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 19, "verdict": "distorted", "issues": ["bad_number"], "note": "Document hedges the figure as 'something like 20 or 30%'; the claim hardens it into a flat literal of 20 percent of global capacity."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 28, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 30, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 35, "verdict": "distorted", "issues": ["overreach", "wrong_stance"], "note": "Document has the host's hedged question 'Maybe they didn't need a joint venture'; the quote drops 'Maybe' and the claim states it as fact."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 36, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 41, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 43, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 45, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "haiku", "claim_index": 46, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": "Speculative stance and quasi-apocryphal flag correctly mirror the source's framing."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": "Text says 'by 2004 and 2005'; valid_from 2004 is an acceptable simplification."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 22, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 25, "verdict": "distorted", "issues": ["bad_number"], "note": "Literal value 25% is not in the text, which says 'something like 20 or 30%'; the extractor invented a midpoint despite disclosing the range in the qualifier."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": "Text says 'over a century old'; 100 years is a reasonable floor reading."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": "Text says 'first of its kind in terms of an effort to develop'; claim drops 'effort' but stays within the text's meaning."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 35, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 36, "verdict": "supported", "issues": [], "note": "COMAC's major-manufacturer status is implied by 'the other major Chinese aircraft manufacturing company'; qualifier discloses the inference."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 37, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 38, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 39, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 40, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 41, "verdict": "supported", "issues": ["missing_attribution"], "note": "The quoted line is spoken by Samaya Keynes, not John Minnick as attributed, though Minnick's answer affirms the same fact."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 42, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 43, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 44, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 45, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 46, "verdict": "distorted", "issues": ["overreach", "wrong_stance"], "note": "Text describes the catfish strategy's intent ('you want to... drum up competitive pressure'); the claim asserts as reported fact that Tesla creates competitive pressure for BYD."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 47, "verdict": "distorted", "issues": ["overreach", "wrong_stance"], "note": "Same intent-vs-effect problem as the BYD claim: the text states a desired effect of the strategy, not an asserted outcome for XPeng."}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 48, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 49, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 50, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 51, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 52, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 53, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 54, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 55, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-06_the-economics-show-china-wanted-western-tech-now-t", "tier": "sonnet", "claim_index": 56, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 0, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 1, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 2, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 3, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 4, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 5, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 6, "verdict": "supported", "issues": [], "note": "Quote elides a 25-word aside between 'the FTSE 100' and 'It's up 9%' but both chunks are verbatim and meaning is unchanged."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 7, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 8, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 9, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 10, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 11, "verdict": "distorted", "issues": ["bad_date"], "note": "Doc says 'since the start of last year' (i.e. early 2025) but valid_from is 2025-08, apparently copied from the publish month; quote is also condensed from 'they've kind of trounced the S&P'."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 12, "verdict": "supported", "issues": ["missing_attribution"], "note": "The 14% H1 EPS figure comes from a Goldman Sachs note by Sharon Bell per the doc, but the claim carries stance 'stated' with no attribution (unlike claim 14 from the same note)."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 13, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 14, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 15, "verdict": "distorted", "issues": ["overreach"], "note": "Doc says the top of the UK stock market is commodities, banks, pharmaceuticals; the claim generalizes this to 'European stock markets', and the quote is a loose paraphrase rather than verbatim text."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 16, "verdict": "supported", "issues": [], "note": "Quote resolves 'it's' to 'US has' and drops the filler 'kind of'; otherwise verbatim and faithful."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 17, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 18, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 19, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 20, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 21, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 22, "verdict": "supported", "issues": [], "note": "Quote splices two nearby verbatim fragments ('You've seen defence do well' + 'with greater spending and focus on that sector'); meaning unchanged."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 23, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 24, "verdict": "distorted", "issues": ["bad_date"], "note": "Doc says the Draghi report came out 'about 18 months ago' from Aug 2026, i.e. around Feb 2025, but valid_from is 2024-02 \u2014 off by a full year."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 25, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 26, "verdict": "supported", "issues": [], "note": "Speaker hedges ('I'm tap dancing here, but I think the number is about 2 trillion'); stance 'reported' is acceptable for the hedged figure."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 27, "verdict": "supported", "issues": []}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "haiku", "claim_index": 28, "verdict": "distorted", "issues": ["overreach"], "note": "Doc says Weatherspoons 'kind of banned' the glasses and explicitly that they can still be worn, only surreptitious filming is barred; the flat 'banned smart glasses' is stronger than the text and the quote's second sentence is paraphrased."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 0, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 1, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 2, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 3, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 4, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 5, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 6, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 7, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 8, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 9, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 10, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 11, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 12, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 13, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 14, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 15, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 16, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 17, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 18, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 19, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 20, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 21, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 22, "verdict": "distorted", "issues": ["missing_attribution", "subject_object_swapped"], "note": "The 'not my dad' speaker is Katie Martin (she gives the Weatherspoons long after Ian's implied-vol long, and shares the Martin surname), so the rumour Rob Armstrong started is that Tim Martin is Katie Martin's dad, not Ian Smith's dad as the claim and its attribution state."}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 23, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 24, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 25, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 26, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 27, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 28, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 29, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 30, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 31, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 32, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 33, "verdict": "supported", "issues": [], "note": ""}
+{"doc_id": "podcast_unhedged_2026-08-13_hot-stoxx-summer", "tier": "sonnet", "claim_index": 34, "verdict": "supported", "issues": [], "note": ""}

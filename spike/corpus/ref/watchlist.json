@@ -1,0 +1,5 @@
+{
+  "tech_ai": ["NVDA", "AMD", "INTC", "MSFT", "GOOGL", "META", "AVGO", "PLTR", "SMCI", "MU", "ORCL", "ANET"],
+  "energy": ["XOM", "CVX", "COP", "SLB", "NEE", "FSLR", "ENPH", "GEV", "VST", "CEG", "OKLO", "BE"],
+  "fnb": ["KO", "PEP", "MDLZ", "KHC", "GIS", "HSY", "STZ", "MNST", "TSN", "CAG", "SBUX", "CMG"]
+}

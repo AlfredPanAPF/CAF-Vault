@@ -1,0 +1,104 @@
+[
+  {
+    "claim_index": 0,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 1,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 2,
+    "verdict": "distorted",
+    "issues": ["bad_number", "overreach"],
+    "note": "Document says net borrowings are 'more than four times' the £350mn value (i.e. >£1.4bn, a derived floor); it never states £1.4bn as the figure."
+  },
+  {
+    "claim_index": 3,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 4,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 5,
+    "verdict": "distorted",
+    "issues": ["overreach"],
+    "note": "Document says Aston Martin borrowed 'up to £550mn'; the claim states the borrowed amount as exactly £550mn, dropping the 'up to' qualifier."
+  },
+  {
+    "claim_index": 6,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 7,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 8,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 9,
+    "verdict": "distorted",
+    "issues": ["overreach"],
+    "note": "Document hedges heavily ('it seems bondholders might have been implicitly protected'); the flat predicate 'implicitly_protected_by' states speculation as fact, and 'reported' stance has no actual attributed source."
+  },
+  {
+    "claim_index": 10,
+    "verdict": "distorted",
+    "issues": ["missing_attribution", "overreach"],
+    "note": "Evidence quote splices out 'according to a person familiar with the situation' without ellipsis (not verbatim), the attributed_to field is empty, and the hedged 'may have had more leeway' is flattened to 'had_leeway'."
+  },
+  {
+    "claim_index": 11,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 12,
+    "verdict": "supported",
+    "issues": [],
+    "note": "Minor: the 25 per cent recovery is conditional on 'absent the relocated assets', a condition the qualifiers omit."
+  },
+  {
+    "claim_index": 13,
+    "verdict": "supported",
+    "issues": [],
+    "note": "'Last year' resolves to 2025 given the 2026 publication date, matching valid_from."
+  },
+  {
+    "claim_index": 14,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 15,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 16,
+    "verdict": "distorted",
+    "issues": [],
+    "note": "Evidence quote is not verbatim: it omits 'to secure new financing' mid-sentence without ellipsis; the claim content itself matches the document."
+  }
+]

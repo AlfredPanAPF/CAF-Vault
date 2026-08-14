@@ -1,0 +1,146 @@
+[
+  {
+    "claim_index": 0,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 1,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 2,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 3,
+    "verdict": "supported",
+    "issues": [],
+    "note": "Quote abbreviates 'billion' to 'B' vs the headline text, but the Guidance section states 'Revenue: $3.9B - $4.2B' and the $4.05B midpoint is correct."
+  },
+  {
+    "claim_index": 4,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 5,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 6,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 7,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 8,
+    "verdict": "distorted",
+    "issues": ["overreach", "missing_attribution"],
+    "note": "The CEO quote says hyperscalers 'have validated and approved our power solutions', which is not the same as Bloom supplying them; the claim also drops attribution to KR Sridhar and marks stance 'stated'."
+  },
+  {
+    "claim_index": 9,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 10,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 11,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 12,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 13,
+    "verdict": "distorted",
+    "issues": [],
+    "note": "Evidence quote is an unmarked splice: the document reads 'solid oxide fuel cell systems provide ultra-resilient, highly scalable onsite electricity for Fortune 500 customers around the world, including...'; the omitted words are dropped mid-sentence without ellipsis, though the claim substance is accurate."
+  },
+  {
+    "claim_index": 14,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 15,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 16,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 17,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 18,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 19,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 20,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 21,
+    "verdict": "distorted",
+    "issues": ["overreach"],
+    "note": "Quote elides 'the' and 'due August 2025' from the document's 'debt exchange between the 2.5% Green Convertible Senior Notes due August 2025 and the 3% Green Convertible Senior Notes due June 2029'; the document describes a debt exchange that settled 2025-05-13 (in a non-GAAP adjustment explanation), not a direct statement that Bloom 'issued bonds'."
+  },
+  {
+    "claim_index": 22,
+    "verdict": "supported",
+    "issues": [],
+    "note": ""
+  },
+  {
+    "claim_index": 23,
+    "verdict": "distorted",
+    "issues": ["overreach", "missing_attribution"],
+    "note": "The CEO quote says neoclouds, AI labs, and colocation operators 'have validated and approved' the power solutions; the claim upgrades this to 'has_customers' and drops attribution to KR Sridhar."
+  }
+]
