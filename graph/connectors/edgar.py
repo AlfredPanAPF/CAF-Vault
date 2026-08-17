@@ -93,6 +93,7 @@ def poll(con, tickers=None, filings_per_company=2):
             continue
         source_id = db.get_or_create_source(con, f"edgar:{ticker}", "edgar", url=subs_url)
         recent = subs["filings"]["recent"]
+        items_col = recent.get("items") or []   # "2.02,9.01" per filing; drives triage
         picks = [i for i, f in enumerate(recent["form"]) if f == "8-K"][:filings_per_company]
         for i in picks:
             acc = recent["accessionNumber"][i]
@@ -121,7 +122,8 @@ def poll(con, tickers=None, filings_per_company=2):
                 con, source_id, "edgar", doc.encode("utf-8"), "text/plain", ".txt",
                 published_at=fdate,
                 meta={"ticker": ticker, "sector": sector_of.get(ticker),
-                      "form": "8-K", "title": title, "origin": base, "accession": acc})
+                      "form": "8-K", "title": title, "origin": base, "accession": acc,
+                      "items": items_col[i] if i < len(items_col) else None})
             counts["new" if is_new else "duplicate"] += 1
     print(f"edgar poll: {counts}")
     return counts

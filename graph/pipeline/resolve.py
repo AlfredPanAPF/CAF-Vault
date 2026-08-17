@@ -65,17 +65,26 @@ def entity_for_rec(con, rec):
 
 def link_claims(con):
     """Link resolved mentions into their event's claims by surface form.
-    Shared with adjudicate.py; safe to re-run — it only writes changed links."""
+    Merged-away entities map to their canonical target at link time (design
+    §2 rule 5, single-hop like db.entity_canonical_for); mentions keep the
+    raw resolved_entity for audit. Shared with adjudicate.py; safe to
+    re-run — it only writes changed links."""
     a = con.execute(
-        "update claim c set subject_entity = m.resolved_entity from mention m "
+        "update claim c set subject_entity = coalesce(s.b, m.resolved_entity) "
+        "from mention m left join entity_same_as s "
+        "on s.a = m.resolved_entity and s.status = 'active' "
         "where m.event_id = c.event_id and m.surface = c.subject_surface "
         "and m.resolved_entity is not null "
-        "and c.subject_entity is distinct from m.resolved_entity").rowcount
+        "and c.subject_entity is distinct from coalesce(s.b, m.resolved_entity)"
+    ).rowcount
     b = con.execute(
-        "update claim c set object_entity = m.resolved_entity from mention m "
+        "update claim c set object_entity = coalesce(s.b, m.resolved_entity) "
+        "from mention m left join entity_same_as s "
+        "on s.a = m.resolved_entity and s.status = 'active' "
         "where m.event_id = c.event_id and m.surface = c.object_surface "
         "and m.resolved_entity is not null "
-        "and c.object_entity is distinct from m.resolved_entity").rowcount
+        "and c.object_entity is distinct from coalesce(s.b, m.resolved_entity)"
+    ).rowcount
     return a + b
 
 

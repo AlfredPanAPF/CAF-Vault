@@ -96,9 +96,9 @@ the `claim_asserted` view, not in prompts).
    verifier's trail attached, parked hypotheses with wake conditions. Without
    this there are no inferred links and the second phase-1 gate (promoted-link
    precision ≥0.7) cannot be measured.
-2. **Alerts + fast path (§3, §11).** Materiality triage at ingest, per-user
-   watchlist subscriptions, a Telegram bot or email channel, morning digest.
-   The stack precedent for Telegram lives in caf-market.
+2. **Alerts + fast path (§3, §11).** Materiality triage at ingest, watchlist
+   alerts, morning digest. In-app surfaces only — the owner dropped Telegram
+   and every other external channel for now (2026-08-17).
 3. **Gardener (§5.3).** Cluster predicate embeddings, write versioned
    canonical mappings into `predicate_map`, make queries resolve through it.
 4. **Quality layer (§10).** Contradiction detection queue, claim-confidence

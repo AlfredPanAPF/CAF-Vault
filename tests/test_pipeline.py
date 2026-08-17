@@ -1,16 +1,10 @@
 """End-to-end pipeline test: ingest -> extract -> resolve -> materialize.
 No network, no real LLM — graph.llm.complete_json is monkeypatched.
-
-CAF_DB_URL must be set before graph.config is imported (it reads env at import).
-"""
+Database fixtures (database, con) live in conftest.py."""
 import copy
 import json
 import os
-import subprocess
 
-os.environ["CAF_DB_URL"] = "postgresql:///caf_graph_test"
-
-import pytest
 import requests
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
@@ -45,30 +39,6 @@ EXTRACTION = {
 # tier requires the registrant's name in the document before trusting "AMD".
 DOC_TEXT = ("Nvidia supplies accelerator boards to AMD. Advanced Micro Devices\n"
             "confirmed the arrangement in a statement.\n")
-
-
-@pytest.fixture(scope="session")
-def database():
-    subprocess.run(["dropdb", "caf_graph_test"], capture_output=True)
-    subprocess.run(["createdb", "caf_graph_test"], capture_output=True)
-    db.migrate()
-    with db.connect() as con:
-        con.execute("insert into registry_sec (cik, ticker, title) values "
-                    "(1045810, 'NVDA', 'NVIDIA CORP'), "
-                    "(2488, 'AMD', 'ADVANCED MICRO DEVICES INC')")
-        con.commit()
-    yield
-    subprocess.run(["dropdb", "caf_graph_test"], capture_output=True)
-
-
-@pytest.fixture
-def con(database, tmp_path, monkeypatch):
-    monkeypatch.setenv("CAF_ARTIFACTS", str(tmp_path))
-    monkeypatch.setattr(config, "ARTIFACTS", tmp_path)
-    c = db.connect()
-    yield c
-    c.rollback()
-    c.close()
 
 
 def test_pipeline(con, tmp_path, monkeypatch):

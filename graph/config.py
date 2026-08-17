@@ -19,6 +19,10 @@ MODELS = {
     "triage": os.environ.get("CAF_MODEL_TRIAGE", "claude-haiku-4-5-20251001"),
     "extract": os.environ.get("CAF_MODEL_EXTRACT", "claude-sonnet-5"),
     "adjudicate": os.environ.get("CAF_MODEL_ADJUDICATE", "claude-sonnet-5"),
+    "hypothesize": os.environ.get("CAF_MODEL_HYPOTHESIZE", "claude-sonnet-5"),
+    "investigate": os.environ.get("CAF_MODEL_INVESTIGATE", "claude-sonnet-5"),
+    "verify": os.environ.get("CAF_MODEL_VERIFY", "claude-sonnet-5"),
+    "garden": os.environ.get("CAF_MODEL_GARDEN", "claude-sonnet-5"),
 }
 
 # edge decay half-lives in days by predicate keyword (design §9); None = structural
@@ -27,7 +31,34 @@ HALF_LIFE_RULES = [
       "founded", "ceo", "cfo", "chair", "director", "appointed", "serves"}, None),
     ({"acquir", "merg", "partner", "deal", "agreement", "contract", "invest",
       "backs", "funding"}, 180),
-    ({"suppl", "customer", "depends", "sources"}, 540),
+    ({"suppl", "customer", "depend", "sources"}, 540),
     ({"litigat", "sued", "lawsuit"}, 365),
 ]
 HALF_LIFE_DEFAULT = 365
+
+# claim confidence staleness (design §10.2): per-predicate half-life in days,
+# None = does not decay. Distinct from edge relevance (§9).
+CLAIM_HALF_LIFE_RULES = [
+    ({"headcount", "guidance", "price", "forecast", "expects"}, 90),
+    ({"revenue", "profit", "earnings", "margin", "reported"}, 365),
+    ({"incorporat", "founded", "headquarter", "own", "subsidiary", "listed"}, None),
+]
+CLAIM_HALF_LIFE_DEFAULT = 540
+
+# discovery funnel (design §8): per-cycle LLM caps and scoring knobs
+DISCOVERY = {
+    "triage_top_k": int(os.environ.get("CAF_VAULT_HYP_TRIAGE_K", "5")),
+    "hypothesize_per_cycle": int(os.environ.get("CAF_VAULT_HYP_PER_CYCLE", "3")),
+    "investigate_per_cycle": int(os.environ.get("CAF_VAULT_INV_PER_CYCLE", "2")),
+    "verify_per_cycle": int(os.environ.get("CAF_VAULT_VER_PER_CYCLE", "2")),
+    "budget_tool_calls": 8,        # hard cap per investigation (§8.4)
+    "budget_tokens": 60000,        # approximate prompt+response ceiling
+    "strategy_prior": {"attribute_join_v0": 0.6},
+    "min_score": 0.05,             # below this a candidate is never triaged
+}
+# independent lineages required to promote, by hypothesis type (§8.5)
+LINEAGES_REQUIRED = {"shared_dependency": 2}
+LINEAGES_REQUIRED_DEFAULT = 2
+
+# fast-path materiality threshold for alerts (design §3)
+ALERT_MATERIALITY_MIN = 0.6

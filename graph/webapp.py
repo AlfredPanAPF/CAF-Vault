@@ -1,4 +1,5 @@
-"""JSON API + SPA serving (build spec v2 §3).
+"""JSON API + SPA serving (build spec v2 §3; alerts, digest and the review
+surfaces per build spec v3 §4.3 and §7.1).
 
 All data endpoints live under /api and return JSON; the built React bundle at
 REPO/frontend/dist is served for everything else (catch-all -> index.html,
@@ -12,7 +13,7 @@ Timestamps are ISO 8601 UTC. Run with `graph serve` (uvicorn graph.webapp:app).
 import json
 import os
 import uuid
-from datetime import timezone
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
@@ -20,8 +21,9 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import config, db
+from . import artifacts, config, db, staleness
 from .connectors import manual
+from .pipeline import adjudicate, resolve
 
 # ---------------------------------------------------------------- helpers
 
@@ -65,6 +67,24 @@ def registry_short(refs):
     return refs.get("ticker") or refs.get("country") or "-"
 
 
+def entity_names(con, ids):
+    """{entity_id: canonical_name} in one query (no N+1 across list rows)."""
+    ids = sorted(set(ids))
+    if not ids:
+        return {}
+    return {r["entity_id"]: r["canonical_name"] for r in con.execute(
+        "select entity_id, canonical_name from entity where entity_id = any(%s)",
+        (ids,))}
+
+
+def predicate_canon_map(con):
+    """Latest predicate_map version as {raw: canon}; {} before the gardener has
+    run. Fetched once per request and passed into claim_json (design §5.3)."""
+    return {r["predicate_raw"]: r["predicate_canon"] for r in con.execute(
+        "select predicate_raw, predicate_canon from predicate_map "
+        "where version = (select max(version) from predicate_map)")}
+
+
 # ---------------------------------------------------------------- claims SQL
 
 CLAIMS_SELECT = """
@@ -97,7 +117,14 @@ def claims_where(q="", predicate="", source_type="", stance="", sector="",
             "or c.predicate_raw ilike %(pat)s or c.evidence_quote ilike %(pat)s)")
         params["pat"] = f"%{q}%"
     if predicate:
-        where.append("c.predicate_raw = %(predicate)s")
+        # the filter takes either form: the raw predicate or its canonical
+        # under the latest gardener mapping (design §5.3)
+        where.append(
+            "(c.predicate_raw = %(predicate)s or exists ("
+            "select 1 from predicate_map pm "
+            "where pm.version = (select max(version) from predicate_map) "
+            "and pm.predicate_raw = lower(c.predicate_raw) "
+            "and pm.predicate_canon = %(predicate)s))")
         params["predicate"] = predicate
     if source_type:
         where.append("s.connector = %(source_type)s")
@@ -117,13 +144,15 @@ def claims_where(q="", predicate="", source_type="", stance="", sector="",
     return ("where " + " and ".join(where)) if where else "", params
 
 
-def claim_json(c):
+def claim_json(c, canon=None):
+    canon = canon or {}
     return {
         "claim_id": c["claim_id"],
         "subject": {"surface": c["subject_surface"],
                     "entity_id": c["subject_entity"],
                     "name": c["subject_name"]},
         "predicate": c["predicate_raw"],
+        "predicate_canon": canon.get((c["predicate_raw"] or "").lower()),
         "object": {"surface": c["object_surface"],
                    "literal": (fmt_literal(c["object_literal"])
                                if c["object_literal"] is not None else None),
@@ -131,6 +160,8 @@ def claim_json(c):
                    "name": c["object_name"]},
         "stance": c["stance"],
         "confidence": c["confidence"],
+        "confidence_now": staleness.confidence_now(
+            c["confidence"], c["observed_at"], c["predicate_raw"]),
         "evidence_quote": c["evidence_quote"],
         "observed_at": iso(c["observed_at"]),
         "published_at": iso(c["published_at"]),
@@ -148,15 +179,17 @@ select e.entity_id, e.canonical_name, e.kind, e.registry_refs,
        (select count(*) from claim c
          where c.subject_entity = e.entity_id or c.object_entity = e.entity_id) as claims
 from entity e
-{where}
+where not exists (select 1 from entity_same_as sa
+                   where sa.a = e.entity_id and sa.status = 'active')
+{extra}
 order by claims desc, e.canonical_name
 limit %(limit)s
 """
 
 ENTITIES_WHERE = """
-where e.canonical_name ilike %(pat)s
-   or exists (select 1 from entity_alias a
-               where a.entity_id = e.entity_id and a.alias ilike %(pat)s)
+and (e.canonical_name ilike %(pat)s
+     or exists (select 1 from entity_alias a
+                 where a.entity_id = e.entity_id and a.alias ilike %(pat)s))
 """
 
 EDGES_SQL = """
@@ -172,9 +205,21 @@ order by relevance desc, e.predicate, peer.canonical_name
 """
 
 HYPOTHESES_SQL = """
-select hypothesis_id, type, subjects, state, rationale, created_at
+select hypothesis_id, type, subjects, state, score, rationale,
+       created_at, updated_at
 from hypothesis
+{where}
 order by created_at desc
+"""
+
+ER_QUEUE_SQL = """
+select q.mention_id, q.candidates, q.decision, q.created_at, q.decided_at,
+       m.surface, m.event_id, ev.artifact_uri,
+       ev.meta->>'title' as doc_title, s.connector, s.name as source_name
+from er_queue q
+join mention m on m.mention_id = q.mention_id
+join event ev on ev.event_id = m.event_id
+join source s on s.source_id = ev.source_id
 """
 
 WATCHLIST_SQL = """
@@ -246,6 +291,25 @@ class FeedBody(BaseModel):
     kind: str
 
 
+class ErDecisionBody(BaseModel):
+    decision: str
+    cik: int | None = None
+    lei: str | None = None
+    name: str | None = None
+
+
+class HypothesisReviewBody(BaseModel):
+    verdict: str
+
+
+class ContradictionResolveBody(BaseModel):
+    keep: str
+
+
+class MergeBody(BaseModel):
+    into: uuid.UUID
+
+
 # ---------------------------------------------------------------- app
 
 
@@ -307,6 +371,12 @@ def create_app():
             "hypotheses": group_counts(
                 con, "select state as k, count(*) n from hypothesis group by 1",
                 ("generated",)),
+            "alerts_unread": con.execute(
+                "select count(*) n from alert where read_at is null"
+            ).fetchone()["n"],
+            "contradictions_open": con.execute(
+                "select count(*) n from contradiction where status='open'"
+            ).fetchone()["n"],
         }
         return {
             "heartbeat": heartbeat,
@@ -350,7 +420,8 @@ def create_app():
             f"order by c.observed_at desc, c.claim_id "
             f"limit %(limit)s offset %(offset)s",
             {**params, "limit": limit, "offset": offset}).fetchall()
-        return {"total": total, "claims": [claim_json(r) for r in rows]}
+        canon = predicate_canon_map(con)
+        return {"total": total, "claims": [claim_json(r, canon) for r in rows]}
 
     # ------------------------------------------------------------ entities
 
@@ -358,7 +429,7 @@ def create_app():
     def api_entities(q: str = "", limit: int = 50, con=Depends(get_con)):
         q = q.strip()
         limit = max(1, min(limit, 200))
-        sql = ENTITIES_SQL.format(where=ENTITIES_WHERE if q else "")
+        sql = ENTITIES_SQL.format(extra=ENTITIES_WHERE if q else "")
         params = {"limit": limit, **({"pat": f"%{q}%"} if q else {})}
         return [{"entity_id": r["entity_id"], "name": r["canonical_name"],
                  "kind": r["kind"], "registry": registry_short(r["registry_refs"]),
@@ -367,24 +438,33 @@ def create_app():
 
     @app.get("/api/entity/{entity_id}")
     def api_entity(entity_id: uuid.UUID, con=Depends(get_con)):
+        # a merged-away id serves its canonical entity's page (spec v3 §7.1)
+        canonical = db.entity_canonical_for(con, entity_id)
         ent = con.execute("select * from entity where entity_id=%s",
-                          (entity_id,)).fetchone()
+                          (canonical,)).fetchone()
         if ent is None:
             raise HTTPException(404, "No such entity.")
+        merged_from = [{"entity_id": r["a"], "name": r["canonical_name"]}
+                       for r in con.execute(
+                           "select sa.a, e.canonical_name from entity_same_as sa "
+                           "join entity e on e.entity_id = sa.a "
+                           "where sa.b=%s and sa.status='active' "
+                           "order by e.canonical_name", (canonical,))]
         aliases = [r["alias"] for r in con.execute(
             "select distinct alias from entity_alias where entity_id=%s "
-            "order by alias", (entity_id,))]
-        where, params = claims_where(entity=entity_id)
+            "order by alias", (canonical,))]
+        where, params = claims_where(entity=canonical)
         claims = con.execute(
             f"{CLAIMS_SELECT} {CLAIMS_FROM} {where} "
             f"order by c.observed_at desc, c.claim_id", params).fetchall()
-        edges = con.execute(EDGES_SQL, {"eid": entity_id}).fetchall()
+        canon = predicate_canon_map(con)
+        edges = con.execute(EDGES_SQL, {"eid": canonical}).fetchall()
 
         def edge_json(e):
             return {"edge_id": e["edge_id"],
                     "peer": {"entity_id": e["peer_id"], "name": e["peer_name"]},
                     "predicate": e["predicate"],
-                    "direction": "out" if e["src"] == entity_id else "in",
+                    "direction": "out" if e["src"] == canonical else "in",
                     "claims": e["claims"],
                     "confidence": e["confidence"],
                     "last_evidence_at": iso(e["last_evidence_at"]),
@@ -396,8 +476,9 @@ def create_app():
                        "name": ent["canonical_name"],
                        "kind": ent["kind"],
                        "registry_refs": ent["registry_refs"] or {}},
+            "merged_from": merged_from,
             "aliases": aliases,
-            "claims": [claim_json(c) for c in claims],
+            "claims": [claim_json(c, canon) for c in claims],
             "edges": {
                 "asserted": [edge_json(e) for e in edges
                              if e["origin"] == "asserted"],
@@ -406,24 +487,379 @@ def create_app():
             },
         }
 
+    @app.post("/api/entities/{entity_id}/merge")
+    def api_merge_entity(entity_id: uuid.UUID, body: MergeBody,
+                         con=Depends(get_con)):
+        if body.into == entity_id:
+            raise HTTPException(400, "Cannot merge an entity into itself.")
+        ids = [entity_id, body.into]
+        found = {r["entity_id"] for r in con.execute(
+            "select entity_id from entity where entity_id = any(%s)", (ids,))}
+        if found != set(ids):
+            raise HTTPException(404, "No such entity.")
+        # chains resolve at write (design §2 rule 5): a merged-away target
+        # redirects to its canonical, keeping the same_as map single-hop
+        target = db.entity_canonical_for(con, body.into)
+        if target == entity_id:
+            raise HTTPException(400, "Cannot merge an entity into itself.")
+        if con.execute("select 1 from entity_same_as "
+                       "where a=%s and status='active'",
+                       (entity_id,)).fetchone():
+            raise HTTPException(409, "Entity is already merged.")
+        con.execute(
+            "insert into entity_same_as (a, b, decided_by) values (%s, %s, 'web')",
+            (entity_id, target))
+        # entities absorbed into this one re-point to the new canonical
+        for r in con.execute(
+                "select a from entity_same_as where b=%s and status='active'",
+                (entity_id,)).fetchall():
+            con.execute(
+                "update entity_same_as set status='reverted' "
+                "where a=%s and b=%s and status='active'", (r["a"], entity_id))
+            con.execute(
+                "insert into entity_same_as (a, b, decided_by, note) "
+                "values (%s, %s, 'web', 'chained merge')", (r["a"], target))
+        con.commit()
+        return {"ok": True, "into": target}
+
+    @app.post("/api/entities/{entity_id}/unmerge")
+    def api_unmerge_entity(entity_id: uuid.UUID, con=Depends(get_con)):
+        cur = con.execute(
+            "update entity_same_as set status='reverted' "
+            "where a=%s and status='active'", (entity_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "No active merge for that entity.")
+        con.commit()
+        return {"ok": True}
+
     # ------------------------------------------------------------ hypotheses
 
     @app.get("/api/hypotheses")
-    def api_hypotheses(con=Depends(get_con)):
-        hypotheses = con.execute(HYPOTHESES_SQL).fetchall()
-        ids = sorted({sid for h in hypotheses for sid in h["subjects"]})
-        names = {}
-        if ids:
-            names = {r["entity_id"]: r["canonical_name"] for r in con.execute(
-                "select entity_id, canonical_name from entity "
-                "where entity_id = any(%s)", (ids,))}
+    def api_hypotheses(state: str = "", con=Depends(get_con)):
+        sql = HYPOTHESES_SQL.format(
+            where="where state = %(state)s" if state else "")
+        hypotheses = con.execute(sql, {"state": state}).fetchall()
+        names = entity_names(
+            con, [sid for h in hypotheses for sid in h["subjects"]])
         return [{"hypothesis_id": h["hypothesis_id"], "type": h["type"],
                  "subjects": [{"entity_id": sid,
                                "name": names.get(sid, str(sid)[:8])}
                               for sid in h["subjects"]],
-                 "state": h["state"], "rationale": h["rationale"],
-                 "created_at": iso(h["created_at"])}
+                 "state": h["state"], "score": h["score"],
+                 "rationale": h["rationale"],
+                 "created_at": iso(h["created_at"]),
+                 "updated_at": iso(h["updated_at"])}
                 for h in hypotheses]
+
+    @app.get("/api/hypotheses/{hypothesis_id}")
+    def api_hypothesis(hypothesis_id: uuid.UUID, con=Depends(get_con)):
+        h = con.execute("select * from hypothesis where hypothesis_id=%s",
+                        (hypothesis_id,)).fetchone()
+        if h is None:
+            raise HTTPException(404, "No such hypothesis.")
+        names = entity_names(con, h["subjects"])
+        evidence = []
+        if h["evidence"]:
+            canon = predicate_canon_map(con)
+            rows = con.execute(
+                f"{CLAIMS_SELECT} {CLAIMS_FROM} where c.claim_id = any(%s) "
+                f"order by c.observed_at desc, c.claim_id",
+                (h["evidence"],)).fetchall()
+            evidence = [claim_json(r, canon) for r in rows]
+        verifier = None
+        if h["state"] == "promoted":
+            edge = con.execute(
+                "select evidence_trail from edge where origin='inferred' "
+                "and evidence_trail->>'hypothesis_id' = %s",
+                (str(hypothesis_id),)).fetchone()
+            verifier = edge["evidence_trail"] if edge else None
+        return {
+            "hypothesis": {"hypothesis_id": h["hypothesis_id"],
+                           "type": h["type"], "statement": h["statement"],
+                           "rationale": h["rationale"],
+                           "test_plan": h["test_plan"], "score": h["score"],
+                           "state": h["state"], "confidence": h["confidence"],
+                           "wake_conditions": h["wake_conditions"],
+                           "parked_at": iso(h["parked_at"]),
+                           "created_at": iso(h["created_at"]),
+                           "updated_at": iso(h["updated_at"])},
+            "subjects": [{"entity_id": sid,
+                          "name": names.get(sid, str(sid)[:8])}
+                         for sid in h["subjects"]],
+            "evidence": evidence,
+            "lineages": len(h["lineages"] or []),
+            "verifier": verifier,
+            "history": h["history"],
+        }
+
+    @app.post("/api/hypotheses/{hypothesis_id}/review")
+    def api_review_hypothesis(hypothesis_id: uuid.UUID,
+                              body: HypothesisReviewBody, con=Depends(get_con)):
+        if body.verdict not in ("accept", "reject"):
+            raise HTTPException(400, "Verdict must be accept or reject.")
+        h = con.execute("select state from hypothesis where hypothesis_id=%s",
+                        (hypothesis_id,)).fetchone()
+        if h is None:
+            raise HTTPException(404, "No such hypothesis.")
+        state = h["state"]
+        if state in ("triaged", "parked") and body.verdict == "accept":
+            raise HTTPException(400, "Accept applies to promoted hypotheses only.")
+        if state not in ("promoted", "triaged", "parked"):
+            raise HTTPException(
+                400, "Review applies to promoted, triaged or parked hypotheses.")
+        if body.verdict == "reject":
+            con.execute(
+                "update hypothesis set state='refuted', updated_at=now(), "
+                "history = history || %s where hypothesis_id=%s",
+                (Jsonb([{"at": datetime.now(timezone.utc).isoformat(),
+                         "from": state, "to": "refuted",
+                         "note": "rejected in review"}]), hypothesis_id))
+            if state == "promoted":
+                # the promoted link loses its human backing; archive, not delete
+                con.execute(
+                    "update edge set archived=true where origin='inferred' "
+                    "and evidence_trail->>'hypothesis_id' = %s",
+                    (str(hypothesis_id),))
+            state = "refuted"
+        con.execute(
+            "insert into review_label (kind, target, verdict) values "
+            "('hypothesis', %s, %s)", (hypothesis_id, body.verdict))
+        con.commit()
+        return {"ok": True, "state": state}
+
+    # ------------------------------------------------------------ alerts
+
+    @app.get("/api/alerts")
+    def api_alerts(limit: int = 50, unread: bool = False, con=Depends(get_con)):
+        limit = max(1, min(limit, 200))
+        unread_n = con.execute(
+            "select count(*) n from alert where read_at is null"
+        ).fetchone()["n"]
+        rows = con.execute(
+            "select * from alert "
+            + ("where read_at is null " if unread else "")
+            + "order by created_at desc, alert_id limit %s", (limit,)).fetchall()
+        names = entity_names(con, [e for r in rows for e in r["entity_ids"]])
+        return {
+            "unread": unread_n,
+            "alerts": [{"alert_id": r["alert_id"], "kind": r["kind"],
+                        "title": r["title"], "body": r["body"],
+                        "entities": [{"entity_id": e,
+                                      "name": names.get(e, str(e)[:8])}
+                                     for e in r["entity_ids"]],
+                        "event_id": r["event_id"],
+                        "hypothesis_id": r["hypothesis_id"],
+                        "created_at": iso(r["created_at"]),
+                        "read_at": iso(r["read_at"])} for r in rows],
+        }
+
+    @app.post("/api/alerts/read-all")
+    def api_alerts_read_all(con=Depends(get_con)):
+        cur = con.execute(
+            "update alert set read_at=now() where read_at is null")
+        con.commit()
+        return {"ok": True, "marked": cur.rowcount}
+
+    @app.post("/api/alerts/{alert_id}/read")
+    def api_alert_read(alert_id: uuid.UUID, con=Depends(get_con)):
+        # idempotent: a second read keeps the original read_at
+        row = con.execute(
+            "update alert set read_at=coalesce(read_at, now()) "
+            "where alert_id=%s returning alert_id", (alert_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "No such alert.")
+        con.commit()
+        return {"ok": True}
+
+    @app.get("/api/digest")
+    def api_digest(hours: int = 24, con=Depends(get_con)):
+        # the morning digest (design §11.4), computed at query time
+        hours = max(1, min(hours, 168))
+        since = con.execute("select now() - make_interval(hours => %s) as t",
+                            (hours,)).fetchone()["t"]
+        claims = con.execute(
+            "select count(*) n from claim where observed_at >= %s",
+            (since,)).fetchone()["n"]
+        events = {r["k"]: r["n"] for r in con.execute(
+            "select connector as k, count(*) n from event "
+            "where fetched_at >= %s group by 1", (since,))}
+        top = con.execute(
+            """
+            with recent as (
+                select subject_entity as ent from claim
+                 where observed_at >= %(since)s and subject_entity is not null
+                union all
+                select object_entity from claim
+                 where observed_at >= %(since)s and object_entity is not null
+            )
+            select e.entity_id, e.canonical_name, count(*) as claims,
+                   exists (select 1 from watchlist w where w.active
+                            and w.ticker = e.registry_refs->>'ticker') as watch
+            from recent r join entity e on e.entity_id = r.ent
+            group by e.entity_id, e.canonical_name, e.registry_refs
+            order by watch desc, claims desc, e.canonical_name
+            limit 8
+            """, {"since": since}).fetchall()
+        # promotions and wakes in the window are exactly their alerts
+        promoted, woke = [], []
+        for r in con.execute(
+                "select kind, hypothesis_id, title from alert "
+                "where kind in ('promoted_link', 'hypothesis_wake') "
+                "and created_at >= %s order by created_at desc", (since,)):
+            (promoted if r["kind"] == "promoted_link" else woke).append(
+                {"hypothesis_id": r["hypothesis_id"], "title": r["title"]})
+        return {
+            "since": iso(since),
+            "claims": claims,
+            "events": events,
+            "top_entities": [{"entity_id": r["entity_id"],
+                              "name": r["canonical_name"],
+                              "claims": r["claims"]} for r in top],
+            "promoted": promoted,
+            "woke": woke,
+            "contradictions_open": con.execute(
+                "select count(*) n from contradiction where status='open'"
+            ).fetchone()["n"],
+            "failed_events": con.execute(
+                "select count(*) n from event where status='failed'"
+            ).fetchone()["n"],
+        }
+
+    # ------------------------------------------------------------ review
+
+    @app.get("/api/er-queue")
+    def api_er_queue(status: str = "pending", limit: int = 50,
+                     con=Depends(get_con)):
+        if status not in ("pending", "decided", "failed"):
+            raise HTTPException(400, "Status must be pending, decided or failed.")
+        limit = max(1, min(limit, 200))
+        pending = con.execute(
+            "select count(*) n from er_queue where status='pending'"
+        ).fetchone()["n"]
+        rows = con.execute(
+            f"{ER_QUEUE_SQL} where q.status = %s order by q.created_at limit %s",
+            (status, limit)).fetchall()
+
+        texts = {}
+
+        def context_for(r):
+            if r["event_id"] not in texts:
+                try:
+                    texts[r["event_id"]] = artifacts.get(
+                        r["artifact_uri"]).decode("utf-8", errors="replace")
+                except OSError:
+                    texts[r["event_id"]] = ""
+            return adjudicate._snippet(texts[r["event_id"]], r["surface"],
+                                       width=150)
+
+        recent = con.execute(
+            f"{ER_QUEUE_SQL} where q.status = 'decided' "
+            f"order by q.decided_at desc nulls last limit 20").fetchall()
+        return {
+            "pending": pending,
+            "items": [{"mention_id": r["mention_id"], "surface": r["surface"],
+                       "context": context_for(r), "doc_title": r["doc_title"],
+                       "source_name": r["source_name"],
+                       "connector": r["connector"],
+                       "candidates": r["candidates"],
+                       "created_at": iso(r["created_at"]),
+                       "passes": (r["decision"] or {}).get("passes") or 0}
+                      for r in rows],
+            "recent": [{"mention_id": r["mention_id"], "surface": r["surface"],
+                        "doc_title": r["doc_title"],
+                        "source_name": r["source_name"],
+                        "connector": r["connector"],
+                        "decision": r["decision"],
+                        "decided_at": iso(r["decided_at"])} for r in recent],
+        }
+
+    @app.post("/api/er-queue/{mention_id}/decide")
+    def api_er_decide(mention_id: uuid.UUID, body: ErDecisionBody,
+                      con=Depends(get_con)):
+        if body.decision not in ("match", "new_entity", "not_a_company"):
+            raise HTTPException(
+                400, "Decision must be match, new_entity or not_a_company.")
+        row = con.execute(
+            "select q.mention_id, q.candidates, m.surface from er_queue q "
+            "join mention m on m.mention_id = q.mention_id "
+            "where q.mention_id=%s and q.status='pending'",
+            (mention_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "No pending review for that mention.")
+        d = {"decision": body.decision, "cik": body.cik, "lei": body.lei,
+             "entity_hint": body.name, "confidence": 1.0, "decided_by": "web"}
+        decision, entity_id = adjudicate.apply_decision(con, row, d)
+        if decision != body.decision:
+            # apply_decision degraded the match; nothing was written
+            raise HTTPException(400, "Match needs a registry id from the candidates.")
+        con.execute(
+            "insert into review_label (kind, target, verdict) values "
+            "('er', %s, %s)", (mention_id, body.decision))
+        resolve.link_claims(con)
+        con.commit()
+        return {"ok": True, "entity_id": entity_id}
+
+    @app.get("/api/contradictions")
+    def api_contradictions(status: str = "open", con=Depends(get_con)):
+        if status not in ("open", "auto_resolved", "resolved", "dismissed"):
+            raise HTTPException(
+                400, "Status must be open, auto_resolved, resolved or dismissed.")
+        rows = con.execute(
+            "select t.contradiction_id, t.subject_entity, t.predicate_canon, "
+            "t.kind, t.status, t.claim_a, t.claim_b, t.created_at, "
+            "e.canonical_name from contradiction t "
+            "join entity e on e.entity_id = t.subject_entity "
+            "where t.status = %s order by t.created_at desc",
+            (status,)).fetchall()
+        claim_ids = sorted({c for r in rows for c in (r["claim_a"], r["claim_b"])})
+        claims = {}
+        if claim_ids:
+            canon = predicate_canon_map(con)
+            claims = {r["claim_id"]: claim_json(r, canon) for r in con.execute(
+                f"{CLAIMS_SELECT} {CLAIMS_FROM} where c.claim_id = any(%s)",
+                (claim_ids,))}
+        return [{"contradiction_id": r["contradiction_id"],
+                 "subject": {"entity_id": r["subject_entity"],
+                             "name": r["canonical_name"]},
+                 "predicate_canon": r["predicate_canon"],
+                 "kind": r["kind"], "status": r["status"],
+                 "claims": {"a": claims.get(r["claim_a"]),
+                            "b": claims.get(r["claim_b"])},
+                 "created_at": iso(r["created_at"])} for r in rows]
+
+    @app.post("/api/contradictions/{contradiction_id}/resolve")
+    def api_resolve_contradiction(contradiction_id: uuid.UUID,
+                                  body: ContradictionResolveBody,
+                                  con=Depends(get_con)):
+        if body.keep not in ("a", "b", "none"):
+            raise HTTPException(400, "Keep must be a, b or none.")
+        t = con.execute(
+            "select * from contradiction where contradiction_id=%s",
+            (contradiction_id,)).fetchone()
+        if t is None:
+            raise HTTPException(404, "No such contradiction.")
+        if t["status"] != "open":
+            raise HTTPException(409, "Already resolved.")
+        if body.keep == "none":
+            con.execute(
+                "update contradiction set status='dismissed', resolved_at=now() "
+                "where contradiction_id=%s", (contradiction_id,))
+        else:
+            winner = t["claim_a"] if body.keep == "a" else t["claim_b"]
+            loser = t["claim_b"] if body.keep == "a" else t["claim_a"]
+            # append-only: the loser is superseded, never deleted (design §2)
+            con.execute(
+                "update claim set status='superseded', superseded_by=%s "
+                "where claim_id=%s", (winner, loser))
+            con.execute(
+                "update contradiction set status='resolved', resolution=%s, "
+                "resolved_at=now() where contradiction_id=%s",
+                (Jsonb({"kept": str(winner)}), contradiction_id))
+        con.execute(
+            "insert into review_label (kind, target, verdict) values "
+            "('contradiction', %s, %s)", (contradiction_id, body.keep))
+        con.commit()
+        return {"ok": True}
 
     # ------------------------------------------------------------ sources
 
@@ -510,6 +946,14 @@ def create_app():
                            "duplicate": event_id is None})
         con.commit()
         return {"events": events}
+
+    @app.post("/api/events/retry-all")
+    def api_retry_all_events(con=Depends(get_con)):
+        cur = con.execute(
+            "update event set status='pending', attempts=0 "
+            "where status='failed'")
+        con.commit()
+        return {"ok": True, "retried": cur.rowcount}
 
     @app.post("/api/events/{event_id}/retry")
     def api_retry_event(event_id: uuid.UUID, con=Depends(get_con)):

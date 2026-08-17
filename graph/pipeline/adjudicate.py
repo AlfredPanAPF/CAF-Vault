@@ -2,6 +2,8 @@
 one batched LLM pass decides match / new_entity / not_a_company / ambiguous.
 Ambiguous rows stay pending and retry on later passes (capped at 3, then
 'failed'). After applying decisions, claim linking re-runs via resolve.link_claims.
+apply_decision is the decision-application helper shared with the review API
+(build spec v3 §7.1).
 """
 import json
 from collections import Counter
@@ -51,6 +53,47 @@ def _match_entity(con, decision, candidates):
     return None
 
 
+def apply_decision(con, row, d):
+    """Apply one match / new_entity / not_a_company decision to a queued
+    mention: write the mention resolution and mark the er_queue row decided
+    with d stored verbatim. row needs mention_id / surface / candidates.
+    A 'match' that cannot be pinned to a registry record degrades to
+    'ambiguous' with nothing written; retry bookkeeping stays with the caller.
+    Shared by run() and the review API. Returns (decision, entity_id)."""
+    decision = d.get("decision")
+    confidence = d.get("confidence") or 0.8
+    entity_id = None
+    if decision == "match":
+        entity_id = _match_entity(con, d, row["candidates"])
+        if entity_id is None:
+            # a match we cannot pin to a registry record is not a match
+            return "ambiguous", None
+        con.execute(
+            "update mention set resolved_entity=%s, "
+            "resolver='adjudicated-v1:match', confidence=%s where mention_id=%s",
+            (entity_id, confidence, row["mention_id"]))
+    elif decision == "new_entity":
+        name = d.get("entity_hint") or row["surface"]
+        entity_id = con.execute(
+            "insert into entity (kind, canonical_name, registry_refs) "
+            "values ('company', %s, %s) returning entity_id",
+            (name, Jsonb({}))).fetchone()["entity_id"]
+        con.execute(
+            "update mention set resolved_entity=%s, "
+            "resolver='adjudicated-v1:new_entity', confidence=%s where mention_id=%s",
+            (entity_id, confidence, row["mention_id"]))
+    elif decision == "not_a_company":
+        con.execute(
+            "update mention set resolver='not_company', confidence=%s "
+            "where mention_id=%s", (confidence, row["mention_id"]))
+    else:
+        return decision, None
+    con.execute(
+        "update er_queue set status='decided', decision=%s, decided_at=now() "
+        "where mention_id=%s", (Jsonb(d), row["mention_id"]))
+    return decision, entity_id
+
+
 def run(con, limit=20):
     rows = con.execute(
         "select q.mention_id, q.candidates, q.decision as prior, m.surface, "
@@ -94,36 +137,11 @@ def run(con, limit=20):
         if not d:
             counts["skipped"] += 1
             continue
-        decision = d.get("decision")
-        confidence = d.get("confidence") or 0.8
-        entity_id = None
-        if decision == "match":
-            entity_id = _match_entity(con, d, r["candidates"])
-            if entity_id is None:
-                # a match we cannot pin to a registry record is not a match
-                decision = "ambiguous"
+        decision, _ = apply_decision(con, r, d)
+        if decision == "ambiguous":
+            if d.get("decision") == "match":
                 d = {**d, "decision": "ambiguous",
                      "note": "match without usable registry id"}
-        if decision == "match":
-            con.execute(
-                "update mention set resolved_entity=%s, "
-                "resolver='adjudicated-v1:match', confidence=%s where mention_id=%s",
-                (entity_id, confidence, r["mention_id"]))
-        elif decision == "new_entity":
-            name = d.get("entity_hint") or r["surface"]
-            entity_id = con.execute(
-                "insert into entity (kind, canonical_name, registry_refs) "
-                "values ('company', %s, %s) returning entity_id",
-                (name, Jsonb({}))).fetchone()["entity_id"]
-            con.execute(
-                "update mention set resolved_entity=%s, "
-                "resolver='adjudicated-v1:new_entity', confidence=%s where mention_id=%s",
-                (entity_id, confidence, r["mention_id"]))
-        elif decision == "not_a_company":
-            con.execute(
-                "update mention set resolver='not_company', confidence=%s "
-                "where mention_id=%s", (confidence, r["mention_id"]))
-        elif decision == "ambiguous":
             passes = ((r["prior"] or {}).get("passes") or 0) + 1
             if passes >= MAX_PASSES:
                 con.execute(
@@ -136,12 +154,9 @@ def run(con, limit=20):
                             (Jsonb({**d, "passes": passes}), r["mention_id"]))
                 counts["ambiguous"] += 1
             continue
-        else:
+        if decision not in ("match", "new_entity", "not_a_company"):
             counts["skipped"] += 1
             continue
-        con.execute(
-            "update er_queue set status='decided', decision=%s, decided_at=now() "
-            "where mention_id=%s", (Jsonb(d), r["mention_id"]))
         counts[decision] += 1
 
     linked = resolve.link_claims(con)

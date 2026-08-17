@@ -11,8 +11,9 @@ from psycopg.types.json import Jsonb
 
 from . import config, db, er_norm, llm
 from .connectors import edgar, manual, podcast, rss
-from .discovery import attribute_joins
-from .pipeline import adjudicate, extract, materialize, resolve
+from .discovery import attribute_joins, funnel, hypothesize, investigate, verify, wake
+from .pipeline import (adjudicate, extract, gardener, materialize, quality,
+                       resolve, triage)
 
 
 def cmd_migrate(args):
@@ -195,16 +196,44 @@ def cmd_discover(args):
         print(out)
 
 
+def _cmd_simple(fn):
+    """Subcommand wrapper for stages with a bare run(con)/callable(con)."""
+    def cmd(args):
+        with db.connect() as con:
+            out = fn(con)
+            con.commit()
+            print(out)
+    return cmd
+
+
+def cmd_quality(args):
+    with db.connect() as con:
+        out = {"contradictions": quality.contradictions(con)}
+        con.commit()
+        out["reliability"] = quality.reliability(con)
+        con.commit()
+        print(out)
+
+
 def cmd_run(args):
     with db.connect() as con:
         stages = [
             ("edgar", lambda: edgar.poll(con)),
             ("rss", lambda: rss.poll(con)),
+            ("triage", lambda: triage.run(con)),
             ("extract", lambda: extract.run(con, limit=args.limit)),
             ("resolve", lambda: resolve.run(con)),
             ("adjudicate", lambda: adjudicate.run(con)),
+            ("garden", lambda: gardener.run(con)),
             ("materialize", lambda: materialize.run(con)),
+            ("contradictions", lambda: quality.contradictions(con)),
+            ("reliability", lambda: quality.reliability(con)),
             ("discover", lambda: attribute_joins.run(con)),
+            ("funnel", lambda: funnel.run(con)),
+            ("hypothesize", lambda: hypothesize.run(con)),
+            ("investigate", lambda: investigate.run(con)),
+            ("verify", lambda: verify.run(con)),
+            ("wake", lambda: wake.run(con)),
         ]
         for name, fn in stages:
             out = fn()
@@ -372,11 +401,20 @@ def cmd_loop(args):
         stage("podcast", lambda con: podcast.poll(
             con, episodes_per_feed=args.episodes))
         stage("rss", lambda con: rss.poll(con))
+        stage("triage", lambda con: triage.run(con))
         stage("extract", _extract_drain)
         stage("resolve", lambda con: resolve.run(con))
         stage("adjudicate", lambda con: adjudicate.run(con))
+        stage("garden", lambda con: gardener.run(con))
         stage("materialize", lambda con: materialize.run(con))
+        stage("contradictions", lambda con: quality.contradictions(con))
+        stage("reliability", lambda con: quality.reliability(con))
         stage("discover", lambda con: attribute_joins.run(con))
+        stage("funnel", lambda con: funnel.run(con))
+        stage("hypothesize", lambda con: hypothesize.run(con))
+        stage("investigate", lambda con: investigate.run(con))
+        stage("verify", lambda con: verify.run(con))
+        stage("wake", lambda con: wake.run(con))
         _cycle_bookkeeping(args.interval)
         print(f"[loop] cycle {cycle} done — sleeping {args.interval}s")
         deadline = time.time() + args.interval
@@ -438,6 +476,22 @@ def main():
                    ).set_defaults(func=cmd_materialize)
     sub.add_parser("discover", help="generate hypotheses from attribute joins"
                    ).set_defaults(func=cmd_discover)
+    sub.add_parser("triage", help="materiality-score pending events"
+                   ).set_defaults(func=_cmd_simple(triage.run))
+    sub.add_parser("garden", help="version the predicate canonical mapping"
+                   ).set_defaults(func=_cmd_simple(gardener.run))
+    sub.add_parser("quality", help="contradiction scan + source reliability"
+                   ).set_defaults(func=cmd_quality)
+    sub.add_parser("funnel", help="triage-score generated hypotheses"
+                   ).set_defaults(func=_cmd_simple(funnel.run))
+    sub.add_parser("hypothesize", help="refine triaged hypotheses (LLM)"
+                   ).set_defaults(func=_cmd_simple(hypothesize.run))
+    sub.add_parser("investigate", help="investigate triaged hypotheses (LLM)"
+                   ).set_defaults(func=_cmd_simple(investigate.run))
+    sub.add_parser("verify", help="verify + promote investigated hypotheses (LLM)"
+                   ).set_defaults(func=_cmd_simple(verify.run))
+    sub.add_parser("wake", help="revive parked hypotheses with new evidence"
+                   ).set_defaults(func=_cmd_simple(wake.run))
 
     s = sub.add_parser("run", help="one full cycle: ingest -> extract -> resolve "
                        "-> adjudicate -> materialize -> discover")
