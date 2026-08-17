@@ -235,6 +235,9 @@ export interface HypothesisHistoryEntry {
   from?: string | null;
   to?: string | null;
   note?: string | null;
+  refined?: Record<string, unknown> | null;
+  investigated?: Record<string, unknown> | null;
+  error?: string | null;
 }
 
 export interface HypothesisDetail {

@@ -399,3 +399,46 @@ def test_link_claims_maps_through_canonical(con):
     # the mention keeps the raw resolution for audit
     assert con.execute("select resolved_entity from mention where event_id=%s",
                        (event_id,)).fetchone()["resolved_entity"] == a
+
+
+def test_ceo_conflict_on_unresolved_person_surfaces(con):
+    """Persons never resolve in v0, so single-valued conflicts must fall back
+    to normalized object surfaces; mixed entity/surface pairs stay silent."""
+    subj = _mk_entity(con, "Person Conflict Co")
+    real = _mk_entity(con, "Real Object Co")
+    e1, l1 = _mk_event(con, "feed-a")
+    e2, l2 = _mk_event(con, "feed-b")
+    # same person, case difference only -> no conflict
+    _mk_claim(con, e1, l1, subj, "appointed_ceo", object_surface="Maria Voss")
+    _mk_claim(con, e2, l2, subj, "appointed_ceo", object_surface="maria voss")
+    # two different people -> conflict
+    _mk_claim(con, e1, l1, subj, "appointed_cfo", object_surface="Alice Ang")
+    _mk_claim(con, e2, l2, subj, "appointed_cfo", object_surface="Bob Beam")
+    # resolved entity vs bare surface -> cannot compare, silent
+    _mk_claim(con, e1, l1, subj, "headquartered_in", obj=real)
+    _mk_claim(con, e2, l2, subj, "headquartered_in", object_surface="Elsewhere")
+
+    quality.contradictions(con)
+    rows = con.execute("select * from contradiction where subject_entity=%s",
+                       (subj,)).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["kind"] == "object_conflict"
+    assert rows[0]["predicate_canon"] == "appointed_cfo"
+
+
+def test_attribute_join_matches_sourcing_predicates(con):
+    """sources_from / depends_on are dependency phrasings the join must see."""
+    from graph.discovery import attribute_joins
+    a = _mk_entity(con, "Sourcer Alpha Co")
+    b = _mk_entity(con, "Sourcer Beta Co")
+    via = _mk_entity(con, "Shared Niche Supplier")
+    e1, l1 = _mk_event(con, "feed-a")
+    e2, l2 = _mk_event(con, "feed-b")
+    _mk_claim(con, e1, l1, a, "sources_from", obj=via)
+    _mk_claim(con, e2, l2, b, "depends_on", obj=via)
+
+    attribute_joins.run(con)
+    row = con.execute(
+        "select 1 from hypothesis where type='shared_dependency' "
+        "and subjects @> array[%s, %s]::uuid[]", (a, b)).fetchone()
+    assert row is not None

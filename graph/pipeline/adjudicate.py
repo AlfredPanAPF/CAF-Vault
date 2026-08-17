@@ -91,7 +91,16 @@ def apply_decision(con, row, d):
             (entity_id, confidence, row["mention_id"]))
     elif decision == "new_entity":
         name = d.get("entity_hint") or row["surface"]
-        entity_id = con.execute(
+        # get-or-create: the same unregistered company adjudicated from two
+        # documents must land on one node, or attribute joins never see a
+        # shared supplier (§8.8). Registry-less companies only; exact
+        # case-insensitive match on the hint or the surface form.
+        existing = con.execute(
+            "select entity_id from entity where kind='company' "
+            "and (registry_refs is null or registry_refs = '{}'::jsonb) "
+            "and lower(canonical_name) in (lower(%s), lower(%s)) limit 1",
+            (name, row["surface"])).fetchone()
+        entity_id = existing["entity_id"] if existing else con.execute(
             "insert into entity (kind, canonical_name, registry_refs) "
             "values ('company', %s, %s) returning entity_id",
             (name, Jsonb({}))).fetchone()["entity_id"]

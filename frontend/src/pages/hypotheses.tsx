@@ -236,9 +236,15 @@ function DetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
                         <span>
                           {entry.from} → {entry.to}
                         </span>
-                      ) : (
-                        entry.to && <span>{entry.to}</span>
-                      )}
+                      ) : entry.to ? (
+                        <span>{entry.to}</span>
+                      ) : entry.refined ? (
+                        <span>refined</span>
+                      ) : entry.investigated ? (
+                        <span>investigated</span>
+                      ) : entry.error ? (
+                        <span>failed attempt</span>
+                      ) : null}
                       {entry.note && (
                         <span className="text-muted-foreground"> · {entry.note}</span>
                       )}

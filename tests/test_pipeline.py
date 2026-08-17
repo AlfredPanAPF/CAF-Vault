@@ -500,3 +500,47 @@ def test_api_run_now(con):
 
     con.execute("delete from app_kv where key='run_requested'")
     con.commit()
+
+
+def test_new_entity_dedup_and_created_entity_tier(con):
+    """The same unregistered company across documents lands on ONE node:
+    apply_decision reuses by name, and resolve gains a created_entity tier
+    (design §8.8 — without this, attribute joins never see a shared via)."""
+    from graph.pipeline import adjudicate as adj
+
+    def queued_mention(surface, source_name):
+        event_id, _ = _mk_event(con, connector="rss", source_name=source_name)
+        mention_id = con.execute(
+            "insert into mention (event_id, surface, resolver) values "
+            "(%s, %s, 'queued') returning mention_id",
+            (event_id, surface)).fetchone()["mention_id"]
+        con.execute("insert into er_queue (mention_id, candidates) "
+                    "values (%s, '[]'::jsonb)", (mention_id,))
+        return mention_id
+
+    m1 = queued_mention("Zeta Materials", "zeta-feed-1")
+    decision, ent1 = adj.apply_decision(
+        con, {"mention_id": m1, "surface": "Zeta Materials", "candidates": []},
+        {"decision": "new_entity", "entity_hint": "Zeta Materials Inc"})
+    assert decision == "new_entity"
+    assert ent1 is not None
+
+    # second adjudication of the same name reuses the node
+    m2 = queued_mention("Zeta Materials Inc", "zeta-feed-2")
+    decision, ent2 = adj.apply_decision(
+        con, {"mention_id": m2, "surface": "Zeta Materials Inc", "candidates": []},
+        {"decision": "new_entity", "entity_hint": None})
+    assert decision == "new_entity"
+    assert ent2 == ent1
+
+    # a plain pending mention now resolves through the created_entity tier
+    event_id, _ = _mk_event(con, connector="rss", source_name="zeta-feed-3")
+    m3 = con.execute(
+        "insert into mention (event_id, surface, resolver) values "
+        "(%s, 'Zeta Materials', 'pending') returning mention_id",
+        (event_id,)).fetchone()["mention_id"]
+    resolve.run(con)
+    row = con.execute("select resolved_entity, resolver from mention "
+                      "where mention_id=%s", (m3,)).fetchone()
+    assert row["resolved_entity"] == ent1
+    assert row["resolver"] == "blocking-v1:created_entity"

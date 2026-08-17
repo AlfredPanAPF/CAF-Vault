@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from psycopg.types.json import Jsonb
 
 from .. import alerts
+from ..er_norm import norm
 
 # predicates that hold one value at a time (§10.1): a canon containing any of
 # these keywords makes two different objects with overlapping validity a conflict
@@ -88,8 +89,8 @@ def contradictions(con) -> dict:
     pmap = predicate_canon_map(con)
     claims = con.execute(
         "select claim_id, subject_entity, subject_surface, predicate_raw, "
-        "object_entity, object_literal, lineage_id, event_id, observed_at, "
-        "valid_from, valid_to "
+        "object_entity, object_surface, object_literal, lineage_id, event_id, "
+        "observed_at, valid_from, valid_to "
         "from claim where status='asserted' and subject_entity is not null"
     ).fetchall()
     groups = defaultdict(list)
@@ -115,8 +116,16 @@ def contradictions(con) -> dict:
                 if not _overlaps(a, b):
                     continue
                 kind = None
-                if (single and a["object_entity"] and b["object_entity"]
-                        and a["object_entity"] != b["object_entity"]):
+                # object identity: the resolved entity, else the normalized
+                # surface — persons (ceo, chair) never resolve in v0, and the
+                # §10.1 headline case IS a CEO conflict. Mixed entity/surface
+                # pairs stay silent: they cannot be compared honestly.
+                ia = (("e", str(a["object_entity"])) if a["object_entity"]
+                      else ("s", norm(a["object_surface"] or "")))
+                ib = (("e", str(b["object_entity"])) if b["object_entity"]
+                      else ("s", norm(b["object_surface"] or "")))
+                if (single and ia[0] == ib[0] and ia[1] and ib[1]
+                        and ia != ib):
                     kind = "object_conflict"
                 else:
                     va, vb = _literal_value(a), _literal_value(b)

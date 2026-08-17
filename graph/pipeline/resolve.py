@@ -109,6 +109,17 @@ def run(con, limit=1000):
         if r["ticker"].upper() in by_ticker:
             aliases[r["alias_norm"]] = by_ticker[r["ticker"].upper()]
 
+    # entities created by earlier new_entity adjudications (no registry refs):
+    # without this tier every doc mentioning the same unregistered supplier
+    # re-queues it and mints a duplicate node, and attribute joins never see
+    # a shared via entity (design §8.8 is exactly this case)
+    created_by_name, created_by_stripped = {}, defaultdict(list)
+    for r in con.execute(
+            "select entity_id, canonical_name from entity where kind='company' "
+            "and (registry_refs is null or registry_refs = '{}'::jsonb)"):
+        created_by_name.setdefault(norm(r["canonical_name"]), r["entity_id"])
+        created_by_stripped[strip_suffix(r["canonical_name"])].append(r["entity_id"])
+
     # GLEIF global registry (2.5M entities) — exact and stripped-name lookups,
     # plus a prefix probe for bare short forms ("Vestas" -> VESTAS WIND SYSTEMS A/S)
     gleif = sqlite3.connect(config.GLEIF_SQLITE) if config.GLEIF_SQLITE.exists() else None
@@ -220,6 +231,12 @@ def run(con, limit=1000):
         rec, tier = name_lookup(surface)
         if rec:
             return "hit", rec, tier
+        ns_created, ss_created = norm(surface), strip_suffix(surface)
+        if ns_created in created_by_name:
+            return "hit", {"entity_id": created_by_name[ns_created]}, "created_entity"
+        if (ss_created in created_by_stripped
+                and len(set(created_by_stripped[ss_created])) == 1):
+            return "hit", {"entity_id": created_by_stripped[ss_created][0]}, "created_entity"
         if (filer and re.fullmatch(r"[A-Z]{2,5}", surface)
                 and surface in (initials(norm(filer["title"])),
                                 initials(strip_suffix(filer["title"])))):
@@ -251,8 +268,10 @@ def run(con, limit=1000):
         outcome, payload, tier = resolve_one(
             surface, filer, defined, row["event_id"], row["artifact_uri"])
         if outcome == "hit":
-            entity_id = entity_for_rec(con, payload)
-            confidence = 0.85 if tier.startswith(("gleif", "filer")) else 0.95
+            entity_id = (payload["entity_id"] if "entity_id" in payload
+                         else entity_for_rec(con, payload))
+            confidence = (0.8 if tier == "created_entity"
+                          else 0.85 if tier.startswith(("gleif", "filer")) else 0.95)
             con.execute(
                 "update mention set resolved_entity=%s, resolver=%s, confidence=%s "
                 "where mention_id=%s",

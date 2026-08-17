@@ -7,7 +7,8 @@ hypothesis. Evidence is asserted-layer claim ids only (§8.4 firewall).
 from psycopg.types.json import Jsonb
 
 PATTERNS = ["%suppl%", "%customer%", "%audit%", "%agent%", "%board%",
-            "%backs%", "%partner%", "%invest%", "%contract%"]
+            "%backs%", "%partner%", "%invest%", "%contract%",
+            "%sourc%", "%depend%", "%procur%", "%relies%", "%buys%"]
 
 TEST_PLAN = {
     "confirm": ["independent source naming both A-C and B-C relationships",

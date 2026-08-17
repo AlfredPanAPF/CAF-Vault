@@ -59,7 +59,8 @@ def fmt_literal(lit):
     if extras:
         tail = ", ".join(f"{k}={v}" for k, v in sorted(extras.items()))
         out = f"{out} ({tail})" if out else tail
-    return out or json.dumps(lit, ensure_ascii=False)
+    # every field null: render nothing rather than raw jsonb
+    return out
 
 
 def registry_short(refs):
