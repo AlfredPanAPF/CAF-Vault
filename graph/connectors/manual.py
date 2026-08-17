@@ -1,7 +1,8 @@
 """Manual uploads: a single file (saved article HTML or plain text) -> one event.
 
 HTML goes through the article-container heuristic from the spike; anything else
-is treated as plain text and used as-is.
+is treated as plain text and used as-is. The `extract` helper is shared with
+the rss connector.
 """
 from pathlib import Path
 
@@ -46,23 +47,29 @@ def extract(html: str):
     return title, published, "\n\n".join(paras)
 
 
-def ingest_file(con, path):
+def ingest_bytes(con, filename, data: bytes):
     """Returns the new event_id, or None when the content is an exact duplicate."""
-    path = Path(path)
-    raw = path.read_text(encoding="utf-8", errors="replace")
-    if path.suffix.lower() in (".htm", ".html"):
+    name = Path(filename).name
+    raw = data.decode("utf-8", errors="replace")
+    if Path(name).suffix.lower() in (".htm", ".html"):
         title, published, body = extract(raw)
         if len(body) < 500:
-            print(f"warn: thin extraction ({len(body)} chars) from {path.name}")
+            print(f"warn: thin extraction ({len(body)} chars) from {name}")
         doc = (f"# title: {title}\n# source_type: article\n"
                f"# published: {published[:10]}\n---\n{body}\n")
         published_at = published[:10] or None
     else:
-        doc = f"# title: {path.stem}\n# source_type: document\n---\n{raw}\n"
+        doc = f"# title: {Path(name).stem}\n# source_type: document\n---\n{raw}\n"
         published_at = None
     source_id = db.get_or_create_source(con, "manual:uploads", "manual", is_internal=True)
     event_id, is_new = envelope.ingest(
         con, source_id, "manual", doc.encode("utf-8"), "text/plain", ".txt",
-        published_at=published_at, meta={"filename": path.name})
-    print(f"{path.name}: {'event ' + str(event_id) if is_new else 'duplicate'}")
+        published_at=published_at, meta={"filename": name})
+    print(f"{name}: {'event ' + str(event_id) if is_new else 'duplicate'}")
     return event_id if is_new else None
+
+
+def ingest_file(con, path):
+    """Returns the new event_id, or None when the content is an exact duplicate."""
+    path = Path(path)
+    return ingest_bytes(con, path.name, path.read_bytes())

@@ -11,6 +11,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "jinja2",
+    "python-multipart",   # FastAPI multipart/form parsing (admin upload)
     "anthropic",
     # Claude Code subscription engine — pinned to the version Filter runs in
     # production; the wheel bundles a standalone CLI binary (no node needed).

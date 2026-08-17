@@ -71,11 +71,11 @@ def exhibit_docs(base: str, acc: str) -> list[str]:
 
 def poll(con, tickers=None, filings_per_company=2):
     counts = {"new": 0, "duplicate": 0, "skipped": 0, "errors": 0}
-    watchlist = json.loads(config.WATCHLIST.read_text())
-    sector_of = {t: s for s, ts in watchlist.items() for t in ts}
+    watchlist = con.execute("select ticker, sector from watchlist where active").fetchall()
+    sector_of = {r["ticker"]: r["sector"] for r in watchlist}
     registrants = json.loads(config.SEC_TICKERS.read_text())
     by_ticker = {v["ticker"]: v for v in registrants.values()}
-    todo = list(tickers) if tickers else [t for ts in watchlist.values() for t in ts]
+    todo = list(tickers) if tickers else [r["ticker"] for r in watchlist]
 
     for ticker in todo:
         reg = by_ticker.get(ticker)

@@ -119,6 +119,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "lxml" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "python-multipart" },
     { name = "requests" },
     { name = "uvicorn" },
 ]
@@ -144,6 +145,7 @@ requires-dist = [
     { name = "jinja2" },
     { name = "lxml" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "python-multipart" },
     { name = "requests" },
     { name = "uvicorn" },
 ]

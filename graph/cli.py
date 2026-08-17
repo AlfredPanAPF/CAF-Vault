@@ -7,7 +7,7 @@ import os
 import time
 
 from . import config, db, er_norm
-from .connectors import edgar, manual, podcast
+from .connectors import edgar, manual, podcast, rss
 from .discovery import attribute_joins
 from .pipeline import adjudicate, extract, materialize, resolve
 
@@ -17,7 +17,8 @@ def cmd_migrate(args):
 
 
 def seed(con):
-    """Load registry_sec + alias_seed from the ref files. No commit (CLI commits)."""
+    """Load registry_sec + alias_seed from the ref files, upsert the watchlist
+    and podcast source rows. No commit (CLI commits)."""
     data = json.loads(config.SEC_TICKERS.read_text())
     registrants = {}
     for v in data.values():
@@ -37,7 +38,31 @@ def seed(con):
             "insert into alias_seed (alias_norm, ticker) values (%s,%s) "
             "on conflict (alias_norm) do nothing", (er_norm.norm(k), v.upper()))
         seeded += cur.rowcount
-    return {"registry_sec": len(registrants), "alias_seed": seeded}
+
+    # watchlist: upsert from the ref file; never touch an existing row's active flag
+    watch = 0
+    for sector, tickers in json.loads(config.WATCHLIST.read_text()).items():
+        for ticker in tickers:
+            con.execute(
+                "insert into watchlist (ticker, sector, added_by) values (%s,%s,'seed') "
+                "on conflict (ticker) do update set sector=excluded.sector",
+                (ticker, sector))
+            watch += 1
+
+    # podcast feeds become source rows; poll() reads these, not podcast.FEEDS
+    for feed, url in podcast.FEEDS.items():
+        name = f"podcast:{feed}"
+        row = con.execute("select source_id from source where name=%s "
+                          "and connector='podcast'", (name,)).fetchone()
+        if row:
+            con.execute("update source set url=%s where source_id=%s",
+                        (url, row["source_id"]))
+        else:
+            con.execute(
+                "insert into source (name, connector, url, status, added_by) "
+                "values (%s,'podcast',%s,'active','seed')", (name, url))
+    return {"registry_sec": len(registrants), "alias_seed": seeded,
+            "watchlist": watch, "podcast_sources": len(podcast.FEEDS)}
 
 
 def cmd_seed(args):
@@ -60,6 +85,43 @@ def cmd_ingest_podcasts(args):
         out = podcast.poll(con, episodes_per_feed=args.episodes)
         con.commit()
         print(out)
+
+
+def cmd_add_feed(args):
+    """Same insert as POST /admin/feeds, for scripting."""
+    name = args.name
+    if args.kind == "podcast" and not name.startswith("podcast:"):
+        name = f"podcast:{name}"
+    with db.connect() as con:
+        row = con.execute("select source_id from source where name=%s and connector=%s",
+                          (name, args.kind)).fetchone()
+        if row:
+            print({"exists": str(row["source_id"])})
+            return
+        row = con.execute(
+            "insert into source (name, connector, url, status, added_by) "
+            "values (%s,%s,%s,'active','cli') returning source_id",
+            (name, args.kind, args.url)).fetchone()
+        con.commit()
+        print({"source_id": str(row["source_id"]), "name": name})
+
+
+def cmd_add_ticker(args):
+    """Same insert as POST /admin/watchlist, for scripting."""
+    ticker = args.ticker.upper()
+    with db.connect() as con:
+        reg = con.execute("select title from registry_sec where ticker=%s",
+                          (ticker,)).fetchone()
+        if not reg:
+            print(f"error: {ticker} not in registry_sec (run `graph seed` first?)")
+            return
+        con.execute(
+            "insert into watchlist (ticker, sector, added_by) values (%s,%s,'cli') "
+            "on conflict (ticker) do update set active=true, "
+            "sector=coalesce(excluded.sector, watchlist.sector)",
+            (ticker, args.sector))
+        con.commit()
+        print({"ticker": ticker, "title": reg["title"]})
 
 
 def cmd_ingest_file(args):
@@ -108,6 +170,7 @@ def cmd_run(args):
     with db.connect() as con:
         stages = [
             ("edgar", lambda: edgar.poll(con)),
+            ("rss", lambda: rss.poll(con)),
             ("extract", lambda: extract.run(con, limit=args.limit)),
             ("resolve", lambda: resolve.run(con)),
             ("adjudicate", lambda: adjudicate.run(con)),
@@ -164,8 +227,10 @@ def cmd_loop(args):
     Per-stage errors are logged and never kill the loop."""
     db.migrate()
     with db.connect() as con:
-        if con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0:
-            print("loop: registry_sec empty — seeding")
+        empty = (con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0
+                 or con.execute("select count(*) n from watchlist").fetchone()["n"] == 0)
+        if empty:
+            print("loop: registry_sec/watchlist empty — seeding")
             out = seed(con)
             con.commit()
             print(f"seed: {out}")
@@ -201,6 +266,7 @@ def cmd_loop(args):
         stage("edgar", lambda con: edgar.poll(con))
         stage("podcast", lambda con: podcast.poll(
             con, episodes_per_feed=args.episodes))
+        stage("rss", lambda con: rss.poll(con))
         stage("extract", _extract_drain)
         stage("resolve", lambda con: resolve.run(con))
         stage("adjudicate", lambda con: adjudicate.run(con))
@@ -229,6 +295,17 @@ def main():
     s = sub.add_parser("ingest-file", help="ingest a local .txt/.html file")
     s.add_argument("path")
     s.set_defaults(func=cmd_ingest_file)
+
+    s = sub.add_parser("add-feed", help="register a feed source row")
+    s.add_argument("name")
+    s.add_argument("url")
+    s.add_argument("--kind", choices=["podcast", "rss"], required=True)
+    s.set_defaults(func=cmd_add_feed)
+
+    s = sub.add_parser("add-ticker", help="add a ticker to the watchlist")
+    s.add_argument("ticker")
+    s.add_argument("--sector", default=None)
+    s.set_defaults(func=cmd_add_ticker)
 
     s = sub.add_parser("extract", help="extract claims from pending events")
     s.add_argument("--limit", type=int, default=10)

@@ -20,8 +20,10 @@ from pathlib import Path
 
 import requests
 
-from .. import db, envelope
+from .. import envelope
 
+# Seed data only: `graph seed` upserts these as source rows (connector
+# 'podcast', name 'podcast:<feed>'); poll() reads the DB, never this dict.
 FEEDS = {
     "unhedged": "https://feeds.acast.com/public/shows/unhedged",
     "aidailybrief": "https://anchor.fm/s/f7cac464/podcast/rss",
@@ -78,21 +80,30 @@ def transcribe(mp3: Path, engine: str | None = None) -> str:
 
 
 def poll(con, feeds=None, episodes_per_feed=2):
+    """Poll active podcast source rows. `feeds` optionally restricts to those
+    feed names (source name minus the 'podcast:' prefix)."""
     counts = {"new": 0, "duplicate": 0, "errors": 0}
     engine = asr_engine()
     if engine == "off":
         print("podcast poll: CAF_ASR=off — skipping podcast ingestion")
         return counts
-    for feed in (list(feeds) if feeds else list(FEEDS)):
-        url = FEEDS[feed]
+    sources = con.execute(
+        "select source_id, name, url from source "
+        "where connector='podcast' and status='active' order by name").fetchall()
+    for src in sources:
+        feed = src["name"].removeprefix("podcast:")
+        if feeds and feed not in feeds:
+            continue
+        source_id = src["source_id"]
         try:
-            r = requests.get(url, headers=HEADERS, timeout=60)
+            r = requests.get(src["url"], headers=HEADERS, timeout=60)
             r.raise_for_status()
         except Exception as e:
             print(f"error {feed}: feed fetch failed ({e})")
             counts["errors"] += 1
             continue
-        source_id = db.get_or_create_source(con, f"podcast:{feed}", "podcast", url=url)
+        con.execute("update source set last_polled=now() where source_id=%s",
+                    (source_id,))
         for title, date, enc_url in list(episodes(r.text))[:episodes_per_feed]:
             if con.execute("select 1 from event where meta->>'enclosure_url'=%s limit 1",
                            (enc_url,)).fetchone():
