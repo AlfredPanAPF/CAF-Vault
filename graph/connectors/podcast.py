@@ -29,7 +29,10 @@ FEEDS = {
     "aidailybrief": "https://anchor.fm/s/f7cac464/podcast/rss",
 }
 MODEL = "mlx-community/whisper-large-v3-turbo"
-FW_MODEL = "large-v3"
+# faster-whisper model, overridable per deployment. "small" holds ~500MB and
+# runs near realtime on two CPU cores; "large-v3" wants ~3GB and froze the
+# 2-core production box on 2026-08-17. Larger models are opt-in via env.
+FW_MODEL = os.environ.get("CAF_ASR_MODEL", "small")
 # CDNs (Acast et al.) 403 the default requests UA
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}

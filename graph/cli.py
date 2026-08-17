@@ -19,6 +19,26 @@ def cmd_migrate(args):
     db.migrate()
 
 
+def migrate_with_retry(window_s=60, pause_s=5):
+    """Migrate, retrying while the database comes up.
+
+    After a host reboot Docker's restart policy starts containers in arbitrary
+    order and the embedded DNS can lag; without this, serve/loop crash-loop on
+    'failed to resolve host postgres' until backoff catches up.
+    """
+    import time
+    deadline = time.time() + window_s
+    while True:
+        try:
+            db.migrate()
+            return
+        except Exception as e:
+            if time.time() >= deadline:
+                raise
+            print(f"db not ready ({e}); retrying in {pause_s}s")
+            time.sleep(pause_s)
+
+
 def seed(con):
     """Load registry_sec + alias_seed from the ref files, upsert the watchlist
     and podcast source rows. No commit (CLI commits)."""
@@ -208,7 +228,7 @@ def cmd_status(args):
 
 def cmd_serve(args):
     import uvicorn
-    db.migrate()
+    migrate_with_retry()
     uvicorn.run("graph.webapp:app", host=args.host, port=args.port)
 
 
@@ -298,7 +318,7 @@ def cmd_loop(args):
     Per-stage errors are logged and never kill the loop. Every stage call is
     recorded in stage_run; each cycle upserts the worker_heartbeat KV; between
     cycles the sleep is a series of <=15s naps that watch for run_requested."""
-    db.migrate()
+    migrate_with_retry(window_s=120)
     with db.connect() as con:
         empty = (con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0
                  or con.execute("select count(*) n from watchlist").fetchone()["n"] == 0)

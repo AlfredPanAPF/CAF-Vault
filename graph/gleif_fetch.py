@@ -141,6 +141,18 @@ def build(zip_path: Path):
     print(f"gleif: done: {db_path} ({db_path.stat().st_size >> 20}MB)")
 
 
+def _usable_zip(path: Path) -> bool:
+    """False for partial downloads (interrupted fetch leaves a truncated file
+    that zipfile rejects); the caller deletes and re-downloads."""
+    if not path.exists():
+        return False
+    if zipfile.is_zipfile(path):
+        return True
+    print(f"gleif: {path} is not a valid zip (interrupted download?) — removing")
+    path.unlink()
+    return False
+
+
 def ensure() -> Path:
     """Build config.GLEIF_SQLITE if missing; no-op when it already exists."""
     db_path = config.GLEIF_SQLITE
@@ -148,7 +160,7 @@ def ensure() -> Path:
         return db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
     zip_path = _zip_path()
-    if zip_path.exists():
+    if _usable_zip(zip_path):
         print(f"gleif: using existing {zip_path} (delete it to force re-download)")
     else:
         zip_path = download()
@@ -161,7 +173,7 @@ def main():
         build(Path(sys.argv[1]))
     else:
         zip_path = _zip_path()
-        if zip_path.exists():
+        if _usable_zip(zip_path):
             print(f"gleif: using existing {zip_path} (delete it to force re-download)")
         else:
             config.GLEIF_SQLITE.parent.mkdir(parents=True, exist_ok=True)
