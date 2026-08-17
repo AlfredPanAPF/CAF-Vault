@@ -250,11 +250,17 @@ class FeedBody(BaseModel):
 
 
 def create_app():
-    # Behind a prefix-stripping proxy (nginx location /vault/ -> /), root_path
-    # puts the public prefix back into generated URLs. Local dev: env unset,
-    # root_path "", and the SPA is additionally served under /vault (below).
+    # CAF_ROOT_PATH set (prod, nginx strips /vault/ -> /): serve plain paths
+    # only. Empty (local dev, no proxy): additionally serve under /vault and
+    # redirect / there, since the built bundle hardcodes /vault/ URLs.
+    #
+    # Deliberately NOT passed to FastAPI(root_path=...): with root_path set,
+    # Starlette expects UNSTRIPPED request paths and strips the prefix itself,
+    # which is the opposite of what a prefix-stripping proxy sends — mounted
+    # assets 404 and the SPA ships blank pages (2026-08-17 incident; Filter's
+    # app.py does the same thing for the same reason).
     root_path = os.environ.get("CAF_ROOT_PATH", "")
-    app = FastAPI(title="CAF graph", root_path=root_path)
+    app = FastAPI(title="CAF graph")
 
     @app.get("/health")
     def health():
