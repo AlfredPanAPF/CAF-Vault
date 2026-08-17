@@ -10,8 +10,7 @@ dependencies = [
     "lxml",
     "fastapi",
     "uvicorn",
-    "jinja2",
-    "python-multipart",   # FastAPI multipart/form parsing (admin upload)
+    "python-multipart",   # FastAPI multipart parsing (POST /api/upload)
     "anthropic",
     # Claude Code subscription engine — pinned to the version Filter runs in
     # production; the wheel bundles a standalone CLI binary (no node needed).

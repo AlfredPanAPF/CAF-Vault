@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 from collections import deque
+from datetime import datetime, timezone
 
 # Each CLI subprocess is ~300MB; cap concurrency process-wide.
 _SEMAPHORE = threading.Semaphore(
@@ -98,6 +99,22 @@ def _maybe_rearm():
             s.dead = False
             s.kind = None
             print(f"llm: seat {s.index} re-armed for probe")
+
+
+def seat_status() -> list[dict]:
+    """Read-only view of the seat pool for the ops surface (spec v2 §2).
+
+    JSON-safe: latched_at is ISO 8601 UTC (or None), reason is truncated.
+    """
+    return [{
+        "seat": s.index,
+        "has_token": bool(s.token),
+        "latched": s.dead,
+        "kind": s.kind,
+        "reason": (s.reason or "")[:160],
+        "latched_at": (datetime.fromtimestamp(s.latched_at, timezone.utc)
+                       .isoformat() if s.latched_at else None),
+    } for s in _seats()]
 
 
 def _call_env(seat, max_tokens):

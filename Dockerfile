@@ -1,6 +1,18 @@
 # CAF-Vault image — serves both compose services:
 #   caf-vault:        graph serve --host 0.0.0.0 --port 8600   (default CMD)
 #   caf-vault-worker: graph loop                               (command override)
+#
+# Two stages: node builds the SPA, python runs the app. The built bundle lands
+# at /app/frontend/dist, where webapp.py's REPO/frontend/dist lookup finds it.
+FROM node:22-slim AS frontend
+
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# tsc -b && vite build (Filter's build script)
+RUN npm run build
+
 FROM python:3.12-slim
 
 # The worker's stage/error logging is plain print(); without this, stdout is
@@ -24,6 +36,8 @@ COPY spike/corpus/ref/watchlist.json \
      spike/corpus/ref/
 
 RUN pip install --no-cache-dir -e ".[asr]"
+
+COPY --from=frontend /build/dist/ ./frontend/dist/
 
 EXPOSE 8600
 CMD ["graph", "serve", "--host", "0.0.0.0", "--port", "8600"]

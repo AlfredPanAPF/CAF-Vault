@@ -1,0 +1,17 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]: CAF Vault
+      - link "Dashboard" [ref=e8] [cursor=pointer]:
+        - /url: /vault
+      - link "Claims" [ref=e12] [cursor=pointer]:
+        - /url: /vault/claims
+      - link "Entities" [ref=e16] [cursor=pointer]:
+        - /url: /vault/entities
+      - link "Sources" [ref=e21] [cursor=pointer]:
+        - /url: /vault/sources
+      - link "Hypotheses" [ref=e26] [cursor=pointer]:
+        - /url: /vault/hypotheses
+    - main [ref=e29]:
+      - img "Loading" [ref=e31]
+  - region "Notifications alt+T"

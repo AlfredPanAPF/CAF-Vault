@@ -11,6 +11,11 @@ uv.lock
 docs/
 tests/
 
+# frontend build inputs come from source; deps are installed and the bundle
+# built inside the node stage
+frontend/node_modules
+frontend/dist
+
 # spike working data — only spike/corpus/ref/*.json is COPY'd into the image
 spike/corpus/raw/
 spike/corpus/text/

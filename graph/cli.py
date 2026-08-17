@@ -5,8 +5,11 @@ import argparse
 import json
 import os
 import time
+from datetime import datetime, timezone
 
-from . import config, db, er_norm
+from psycopg.types.json import Jsonb
+
+from . import config, db, er_norm, llm
 from .connectors import edgar, manual, podcast, rss
 from .discovery import attribute_joins
 from .pipeline import adjudicate, extract, materialize, resolve
@@ -221,10 +224,80 @@ def _extract_drain(con, batch=10):
             return total
 
 
+def _stage_begin(name):
+    """Open a stage_run row on its own connection. Bookkeeping failures are
+    logged and never block the stage itself."""
+    try:
+        with db.connect() as con:
+            run_id = con.execute(
+                "insert into stage_run (stage, started_at) values (%s, now()) "
+                "returning id", (name,)).fetchone()["id"]
+            con.commit()
+            return run_id
+    except Exception as e:
+        print(f"loop: stage_run insert failed ({e!r})")
+        return None
+
+
+def _stage_finish(run_id, summary=None, error=None):
+    if run_id is None:
+        return
+    try:
+        with db.connect() as con:
+            con.execute(
+                "update stage_run set finished_at=now(), summary=%s, error=%s "
+                "where id=%s",
+                (Jsonb(summary) if summary is not None else None, error, run_id))
+            con.commit()
+    except Exception as e:
+        print(f"loop: stage_run update failed ({e!r})")
+
+
+def _cycle_bookkeeping(interval_s):
+    """Once per cycle: heartbeat upsert + 7-day stage_run prune."""
+    heartbeat = {
+        "last_cycle_at": datetime.now(timezone.utc).isoformat(),
+        "interval_s": interval_s,
+        "seats": llm.seat_status(),
+    }
+    try:
+        with db.connect() as con:
+            con.execute(
+                "insert into app_kv (key, value, updated_at) values "
+                "('worker_heartbeat', %s, now()) on conflict (key) do update "
+                "set value=excluded.value, updated_at=now()", (Jsonb(heartbeat),))
+            con.execute(
+                "delete from stage_run where started_at < now() - interval '7 days'")
+            con.commit()
+    except Exception as e:
+        print(f"loop: heartbeat upsert failed ({e!r})")
+
+
+def _run_requested():
+    """Read-and-reset the app_kv run_requested flag (webapp POST /api/run-now)."""
+    try:
+        with db.connect() as con:
+            row = con.execute(
+                "select value from app_kv where key='run_requested'").fetchone()
+            if not (row and isinstance(row["value"], dict)
+                    and row["value"].get("v") is True):
+                return False
+            con.execute(
+                "update app_kv set value=%s, updated_at=now() "
+                "where key='run_requested'", (Jsonb({"v": False}),))
+            con.commit()
+            return True
+    except Exception as e:
+        print(f"loop: run_requested check failed ({e!r})")
+        return False
+
+
 def cmd_loop(args):
     """Pipeline worker: migrate + seed-if-empty + GLEIF bootstrap, then poll
     -> extract -> resolve -> adjudicate -> materialize -> discover forever.
-    Per-stage errors are logged and never kill the loop."""
+    Per-stage errors are logged and never kill the loop. Every stage call is
+    recorded in stage_run; each cycle upserts the worker_heartbeat KV; between
+    cycles the sleep is a series of <=15s naps that watch for run_requested."""
     db.migrate()
     with db.connect() as con:
         empty = (con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0
@@ -251,13 +324,16 @@ def cmd_loop(args):
     def stage(name, fn):
         # fresh connection per stage: one stage's failure (or a dropped
         # postgres connection) never poisons the rest of the cycle
+        run_id = _stage_begin(name)
         try:
             with db.connect() as con:
                 out = fn(con)
                 con.commit()
             print(f"{name}: {out}")
+            _stage_finish(run_id, summary=out)
         except Exception as e:
             print(f"{name}: ERROR {e!r}")
+            _stage_finish(run_id, error=repr(e))
 
     cycle = 0
     while True:
@@ -272,8 +348,17 @@ def cmd_loop(args):
         stage("adjudicate", lambda con: adjudicate.run(con))
         stage("materialize", lambda con: materialize.run(con))
         stage("discover", lambda con: attribute_joins.run(con))
+        _cycle_bookkeeping(args.interval)
         print(f"[loop] cycle {cycle} done — sleeping {args.interval}s")
-        time.sleep(args.interval)
+        deadline = time.time() + args.interval
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            time.sleep(min(15, remaining))
+            if _run_requested():
+                print("[loop] run requested — starting next cycle early")
+                break
 
 
 def main():

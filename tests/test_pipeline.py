@@ -13,6 +13,7 @@ os.environ["CAF_DB_URL"] = "postgresql:///caf_graph_test"
 import pytest
 import requests
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 
 from graph import cli, config, db, llm, webapp
 from graph.connectors import edgar, manual, rss
@@ -224,56 +225,290 @@ def test_rss_poll_ingests_and_dedups(con, monkeypatch):
     assert out2["duplicate"] == 1
 
 
-# webapp admin: the endpoints open their own connections and commit; the
+# webapp API: the endpoints open their own connections and commit; the
 # session-scoped test DB is dropped afterwards, so committed rows are fine.
+# Tests that need fixture rows commit them on the test connection first.
 
 
-def test_admin_page_renders(con):
+def _mk_event(con, connector="rss", source_name="apitest-feed",
+              status="extracted", meta=None, last_error=None):
+    """Insert a committed-ready event + lineage pair directly (no artifact)."""
+    source_id = db.get_or_create_source(con, source_name, connector)
+    event_id = con.execute(
+        "insert into event (source_id, connector, content_hash, artifact_uri, "
+        "mime, status, meta, last_error) values "
+        "(%s, %s, %s, 'file:///dev/null', 'text/plain', %s, %s, %s) "
+        "returning event_id",
+        (source_id, connector, os.urandom(32), status,
+         Jsonb(meta) if meta is not None else None, last_error)).fetchone()["event_id"]
+    lineage_id = con.execute(
+        "insert into lineage (root_event_id) values (%s) returning lineage_id",
+        (event_id,)).fetchone()["lineage_id"]
+    con.execute("update event set lineage_id=%s where event_id=%s",
+                (lineage_id, event_id))
+    return event_id, lineage_id
+
+
+def _mk_claim(con, event_id, lineage_id, subject, predicate, obj,
+              stance="stated", quote=""):
+    return con.execute(
+        "insert into claim (subject_surface, predicate_raw, object_surface, "
+        "qualifiers, event_id, lineage_id, observed_at, confidence, "
+        "extractor, evidence_quote) "
+        "values (%s, %s, %s, %s, %s, %s, now(), 0.9, 'test-v1', %s) "
+        "returning claim_id",
+        (subject, predicate, obj, Jsonb({"stance": stance}), event_id,
+         lineage_id, quote)).fetchone()["claim_id"]
+
+
+def test_health_and_unknown_api_path():
     client = TestClient(webapp.app)
-    r = client.get("/admin")
+    assert client.get("/health").json() == {"ok": True}
+    # unknown /api paths must 404, never fall through to the SPA catch-all
+    assert client.get("/api/nope").status_code == 404
+
+
+def test_seat_status(monkeypatch):
+    monkeypatch.setattr(llm, "_SEATS", None)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN_VAULT_1", "tok-a")
+    assert llm.seat_status() == [{"seat": 1, "has_token": True,
+                                  "latched": False, "kind": None,
+                                  "reason": "", "latched_at": None}]
+    monkeypatch.setattr(llm, "_SEATS", None)   # drop the fake seat pool
+
+
+def test_api_status_shape(con):
+    client = TestClient(webapp.app)
+    con.execute("delete from app_kv")
+    con.execute("delete from stage_run")
+    con.commit()
+
+    # without a heartbeat: null, but the rest of the shape is intact
+    body = client.get("/api/status").json()
+    assert body["heartbeat"] is None
+    assert body["stages"] == []
+    counts = body["counts"]
+    for key in ("pending", "extracting", "extracted", "failed", "duplicate"):
+        assert isinstance(counts["events"][key], int)
+    assert isinstance(counts["claims"], int)
+    assert isinstance(counts["claims_7d"], int)
+    for key in ("resolved", "queued", "unresolved", "skipped"):
+        assert isinstance(counts["mentions"][key], int)
+    assert isinstance(counts["entities"], int)
+    assert set(counts["edges"]) >= {"asserted", "inferred"}
+    assert set(counts["er_queue"]) >= {"pending", "decided", "failed"}
+    assert "generated" in counts["hypotheses"]
+    assert isinstance(body["sources"], list)
+    assert isinstance(body["failed_events"], list)
+
+    # with a heartbeat + stage runs: latest run per stage, run_requested flag
+    hb = {"last_cycle_at": "2026-08-17T00:00:00+00:00", "interval_s": 900,
+          "seats": [{"seat": 1, "has_token": False, "latched": False,
+                     "kind": None, "reason": "", "latched_at": None}]}
+    con.execute("insert into app_kv (key, value) values ('worker_heartbeat', %s)",
+                (Jsonb(hb),))
+    con.execute(
+        "insert into stage_run (stage, started_at, finished_at, summary) values "
+        "('edgar', now() - interval '20 minutes', now() - interval '19 minutes', %s)",
+        (Jsonb({"new": 1}),))
+    con.execute(
+        "insert into stage_run (stage, started_at, finished_at, summary) values "
+        "('edgar', now() - interval '2 minutes', now() - interval '1 minute', %s)",
+        (Jsonb({"new": 3}),))
+    con.execute(
+        "insert into stage_run (stage, started_at, finished_at, error) values "
+        "('rss', now() - interval '1 minute', now(), 'boom')")
+    con.commit()
+
+    body = client.get("/api/status").json()
+    assert body["heartbeat"]["last_cycle_at"] == hb["last_cycle_at"]
+    assert body["heartbeat"]["interval_s"] == 900
+    assert body["heartbeat"]["seats"][0]["seat"] == 1
+    assert body["heartbeat"]["run_requested"] is False
+
+    stages = {s["stage"]: s for s in body["stages"]}
+    assert set(stages) == {"edgar", "rss"}          # one row per stage
+    assert stages["edgar"]["summary"] == {"new": 3}  # the latest edgar run
+    assert stages["edgar"]["finished_at"] is not None
+    assert stages["rss"]["error"] == "boom"
+
+    # failed events surface with title from meta
+    event_id, _ = _mk_event(con, connector="rss", status="failed",
+                            meta={"title": "Broken doc"}, last_error="parse error")
+    con.commit()
+    body = client.get("/api/status").json()
+    failed = {f["event_id"]: f for f in body["failed_events"]}
+    assert str(event_id) in failed
+    assert failed[str(event_id)]["title"] == "Broken doc"
+    assert failed[str(event_id)]["last_error"] == "parse error"
+
+    con.execute("delete from app_kv")
+    con.execute("delete from stage_run")
+    con.commit()
+
+
+def test_api_claims_filters(con):
+    client = TestClient(webapp.app)
+    event_id, lineage_id = _mk_event(
+        con, connector="rss", source_name="apitest-claims",
+        meta={"title": "Chips daily", "sector": "tech_ai"})
+    _mk_claim(con, event_id, lineage_id, "Nvidia", "supplies", "AMD",
+              stance="stated", quote="Nvidia supplies xziq boards to AMD.")
+    _mk_claim(con, event_id, lineage_id, "Hershey", "acquires", "CocoaCo",
+              stance="speculative",
+              quote="Hershey may acquire the xziq cocoa processor.")
+    con.commit()
+
+    # q isolates our fixture claims from anything other tests committed
+    body = client.get("/api/claims", params={"q": "xziq"}).json()
+    assert body["total"] == 2
+    assert len(body["claims"]) == 2
+
+    # stance + q combine
+    body = client.get("/api/claims",
+                      params={"q": "xziq", "stance": "speculative"}).json()
+    assert body["total"] == 1
+    claim = body["claims"][0]
+    assert claim["subject"]["surface"] == "Hershey"
+    assert claim["predicate"] == "acquires"
+    assert claim["object"]["surface"] == "CocoaCo"
+    assert claim["stance"] == "speculative"
+    assert "cocoa" in claim["evidence_quote"]
+    assert claim["connector"] == "rss"
+    assert claim["source_name"] == "apitest-claims"
+    assert claim["doc_title"] == "Chips daily"
+    assert claim["event_id"] == str(event_id)
+
+    # no matches -> empty page, zero total
+    body = client.get("/api/claims", params={"q": "zzznomatchzzz"}).json()
+    assert body == {"total": 0, "claims": []}
+
+    # invalid source_type is rejected
+    assert client.get("/api/claims",
+                      params={"source_type": "carrier-pigeon"}).status_code == 400
+
+
+def test_api_watchlist_post(con):
+    client = TestClient(webapp.app)
+    r = client.post("/api/watchlist", json={"ticker": "nvda", "sector": "semis"})
     assert r.status_code == 200
-    for section in ("Watchlist", "Feeds", "Upload"):
-        assert section in r.text
-
-
-def test_admin_watchlist_post(con):
-    client = TestClient(webapp.app)
-    r = client.post("/admin/watchlist", data={"ticker": "nvda", "sector": "semis"})
-    assert r.status_code == 200            # 303 followed back to /admin
-    assert "NVIDIA CORP" in r.text         # confirmation line with registry title
+    assert r.json() == {"ok": True, "ticker": "NVDA", "company": "NVIDIA CORP"}
     row = con.execute("select * from watchlist where ticker='NVDA'").fetchone()
     assert row is not None
     assert row["active"] and row["added_by"] == "web"
 
-    # unknown tickers are rejected, not inserted
-    r = client.post("/admin/watchlist", data={"ticker": "ZZZZ9", "sector": ""})
-    assert r.status_code == 200
-    assert "unknown ticker" in r.text
+    # unknown tickers are rejected with a 400, not inserted
+    r = client.post("/api/watchlist", json={"ticker": "ZZZZ9"})
+    assert r.status_code == 400
+    assert "Unknown ticker" in r.json()["detail"]
     assert con.execute("select 1 from watchlist where ticker='ZZZZ9'"
                        ).fetchone() is None
 
+    # toggle flips active
+    r = client.post("/api/watchlist/NVDA/toggle")
+    assert r.json() == {"ok": True, "active": False}
+    r = client.post("/api/watchlist/NVDA/toggle")
+    assert r.json() == {"ok": True, "active": True}
+    assert client.post("/api/watchlist/ZZZZ9/toggle").status_code == 404
 
-def test_admin_upload(con):
+
+def test_api_feeds_post(con):
     client = TestClient(webapp.app)
-    r = client.post("/admin/upload", files=[
-        ("files", ("supply-note.txt",
-                   b"Cocoa suppliers signed a new agreement with Hershey.",
-                   "text/plain"))])
-    assert r.status_code == 200
-    assert "supply-note.txt: event " in r.text
-    ev = con.execute("select * from event where connector='manual' "
-                     "and meta->>'filename'='supply-note.txt'").fetchone()
-    assert ev is not None
-
-
-def test_admin_feeds_post(con):
-    client = TestClient(webapp.app)
-    r = client.post("/admin/feeds", data={
-        "name": "chipsblog", "url": "https://chips.example.com/rss",
+    r = client.post("/api/feeds", json={
+        "name": "chipsblog2", "url": "https://chips2.example.com/rss",
         "kind": "rss"})
     assert r.status_code == 200
-    row = con.execute("select * from source where connector='rss' "
-                      "and name='chipsblog'").fetchone()
-    assert row is not None
+    body = r.json()
+    assert body["ok"] is True
+    row = con.execute("select * from source where source_id=%s",
+                      (body["source_id"],)).fetchone()
+    assert row["name"] == "chipsblog2"
     assert row["status"] == "active"
     assert row["added_by"] == "web"
+
+    # duplicate name+kind -> 409
+    r = client.post("/api/feeds", json={
+        "name": "chipsblog2", "url": "https://chips2.example.com/rss",
+        "kind": "rss"})
+    assert r.status_code == 409
+
+    # podcast names get the podcast: prefix; bad kinds are rejected
+    r = client.post("/api/feeds", json={
+        "name": "chipcast", "url": "https://chips2.example.com/pod.xml",
+        "kind": "podcast"})
+    assert r.status_code == 200
+    assert con.execute("select 1 from source where name='podcast:chipcast' "
+                       "and connector='podcast'").fetchone() is not None
+    assert client.post("/api/feeds", json={
+        "name": "x", "url": "https://x.example.com", "kind": "atom"
+    }).status_code == 400
+
+
+def test_api_upload(con):
+    client = TestClient(webapp.app)
+    payload = b"Vendor xziq signed a supply agreement with Hershey."
+    r = client.post("/api/upload", files=[
+        ("files", ("supply-note-2.txt", payload, "text/plain"))])
+    assert r.status_code == 200
+    result = r.json()["events"][0]
+    assert result["filename"] == "supply-note-2.txt"
+    assert result["event_id"] is not None
+    assert result["duplicate"] is False
+    ev = con.execute("select * from event where event_id=%s",
+                     (result["event_id"],)).fetchone()
+    assert ev["connector"] == "manual"
+    assert ev["meta"]["filename"] == "supply-note-2.txt"
+
+    # same bytes again -> duplicate, no new event id
+    r = client.post("/api/upload", files=[
+        ("files", ("supply-note-2.txt", payload, "text/plain"))])
+    result = r.json()["events"][0]
+    assert result["event_id"] is None
+    assert result["duplicate"] is True
+
+
+def test_api_retry_failed_event(con):
+    client = TestClient(webapp.app)
+    event_id, _ = _mk_event(con, status="failed", last_error="llm timeout",
+                            meta={"title": "Retry me"})
+    con.execute("update event set attempts=3 where event_id=%s", (event_id,))
+    con.commit()
+
+    r = client.post(f"/api/events/{event_id}/retry")
+    assert r.json() == {"ok": True}
+    row = con.execute("select status, attempts from event where event_id=%s",
+                      (event_id,)).fetchone()
+    assert row["status"] == "pending"
+    assert row["attempts"] == 0
+
+    # no longer failed -> 404; unknown id -> 404
+    assert client.post(f"/api/events/{event_id}/retry").status_code == 404
+    import uuid as uuid_mod
+    assert client.post(f"/api/events/{uuid_mod.uuid4()}/retry").status_code == 404
+
+
+def test_api_run_now(con):
+    client = TestClient(webapp.app)
+    con.execute("delete from app_kv where key='run_requested'")
+    con.commit()
+
+    assert client.post("/api/run-now").json() == {"ok": True}
+    row = con.execute("select value from app_kv where key='run_requested'"
+                      ).fetchone()
+    assert row["value"] == {"v": True}
+
+    # idempotent upsert
+    assert client.post("/api/run-now").json() == {"ok": True}
+    row = con.execute("select value from app_kv where key='run_requested'"
+                      ).fetchone()
+    assert row["value"] == {"v": True}
+
+    # the worker's nap-loop helper reads and resets the flag
+    assert cli._run_requested() is True
+    row = con.execute("select value from app_kv where key='run_requested'"
+                      ).fetchone()
+    assert row["value"] == {"v": False}
+    assert cli._run_requested() is False
+
+    con.execute("delete from app_kv where key='run_requested'")
+    con.commit()
