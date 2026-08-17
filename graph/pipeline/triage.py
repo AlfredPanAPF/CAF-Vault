@@ -41,6 +41,22 @@ def materiality(connector, meta):
 
 
 def run(con, limit=500):
+    """Score every pending, untriaged event, draining in batches of `limit`
+    (no LLM, so a bulk backlog is fully scored in the cycle it arrives —
+    extract only consumes triaged events, so nothing may be left behind)."""
+    totals = {"scored": 0, "fast": 0, "alerts": 0}
+    while True:
+        out = _run_batch(con, limit)
+        for k in totals:
+            totals[k] += out[k]
+        if out["scored"] < limit:
+            break
+    print(f"triage: {totals['scored']} scored, {totals['fast']} fast, "
+          f"{totals['alerts']} alerts")
+    return totals
+
+
+def _run_batch(con, limit):
     events = con.execute(
         "select event_id, connector, meta from event "
         "where status = 'pending' and triage is null "
@@ -75,5 +91,4 @@ def run(con, limit=500):
                     event_id=ev["event_id"])
         n_alerts += 1
 
-    print(f"triage: {scored} scored, {fast} fast, {n_alerts} alerts")
     return {"scored": scored, "fast": fast, "alerts": n_alerts}

@@ -152,6 +152,69 @@ def test_contradiction_same_lineage_auto_resolves(con):
                        "and %s = any(entity_ids)", (subj,)).fetchone()["n"] == 0
 
 
+def test_same_lineage_pair_from_merge_stays_open(con):
+    """A wrong merge makes two different companies' claims share a subject;
+    the same-lineage auto-resolve must NOT supersede across that merge —
+    the pair stays open for review and unmerge fully heals (design §15)."""
+    corp = _mk_entity(con, "Acme Corp Q")
+    inds = _mk_entity(con, "Acme Industries Q")
+    event_id, lineage_id = _mk_event(con, "feed-mergegate")
+    con.execute(
+        "insert into mention (event_id, surface, resolved_entity, resolver) "
+        "values (%s, 'Acme Corp Q', %s, 'test-v1'), "
+        "(%s, 'Acme Industries Q', %s, 'test-v1')",
+        (event_id, corp, event_id, inds))
+    usd = {"currency": "USD", "unit": "B", "as_of": "2026-06-30"}
+    c1 = _mk_claim(con, event_id, lineage_id, corp, "reported_revenue",
+                   literal={**usd, "value": 3.0}, subject_surface="Acme Corp Q")
+    c2 = _mk_claim(con, event_id, lineage_id, inds, "reported_revenue",
+                   literal={**usd, "value": 1.2},
+                   subject_surface="Acme Industries Q")
+
+    # reviewer wrongly merges Industries into Corp; link re-points the claim
+    con.execute("insert into entity_same_as (a, b, decided_by) values "
+                "(%s, %s, 'test')", (inds, corp))
+    resolve.link_claims(con)
+    assert con.execute("select subject_entity from claim where claim_id=%s",
+                       (c2,)).fetchone()["subject_entity"] == corp
+
+    quality.contradictions(con)
+    row = con.execute(
+        "select * from contradiction where claim_a in (%s, %s)",
+        (c1, c2)).fetchone()
+    assert row is not None
+    assert row["status"] == "open"           # not silently absorbed
+    for cid in (c1, c2):
+        assert con.execute("select status from claim where claim_id=%s",
+                           (cid,)).fetchone()["status"] == "asserted"
+
+
+def test_same_lineage_auto_resolve_still_works_with_mentions(con):
+    """The merge gate must not break legitimate same-lineage supersession:
+    same raw identity on both sides -> newer supersedes older."""
+    corp = _mk_entity(con, "Restate Corp Q")
+    event_id, lineage_id = _mk_event(con, "feed-restate")
+    con.execute(
+        "insert into mention (event_id, surface, resolved_entity, resolver) "
+        "values (%s, 'Restate Corp Q', %s, 'test-v1')", (event_id, corp))
+    usd = {"currency": "USD", "unit": "B", "as_of": "2026-06-30"}
+    now = datetime.now(timezone.utc)
+    older = _mk_claim(con, event_id, lineage_id, corp, "reported_revenue",
+                      literal={**usd, "value": 3.0},
+                      subject_surface="Restate Corp Q",
+                      observed_at=now - timedelta(days=1))
+    newer = _mk_claim(con, event_id, lineage_id, corp, "reported_revenue",
+                      literal={**usd, "value": 3.4},
+                      subject_surface="Restate Corp Q", observed_at=now)
+
+    out = quality.contradictions(con)
+    assert out["auto_resolved"] >= 1
+    old = con.execute("select status, superseded_by from claim "
+                      "where claim_id=%s", (older,)).fetchone()
+    assert old["status"] == "superseded"
+    assert old["superseded_by"] == newer
+
+
 # ---------------------------------------------------------------- reliability
 
 

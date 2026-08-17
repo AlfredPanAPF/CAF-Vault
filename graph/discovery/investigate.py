@@ -8,7 +8,7 @@ loop ends on either budget with a default 'insufficient' conclusion.
 import json
 
 from .. import artifacts, config, llm
-from .funnel import append_history, parse_uuid, subject_names
+from .funnel import append_history, parse_uuid, record_failure, subject_names
 from .hypothesize import CLAIM_SELECT, claim_line
 
 ASSESSMENTS = {"supported", "refuted", "insufficient"}
@@ -150,14 +150,24 @@ def run(con) -> dict:
         "order by score desc nulls last, created_at limit %s",
         (config.DISCOVERY["investigate_per_cycle"],)).fetchall()
 
-    investigated = 0
+    investigated = failed = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
         con.execute("savepoint inv_item")
+        # state guard: the batch was read before any LLM time was spent; a row
+        # a human moved meanwhile (e.g. rejected to 'refuted') must not be
+        # flipped back — and gets no LLM budget. NOTE (liveness): once this
+        # flip is in flight, a concurrent review POST blocks on the row lock
+        # until the stage-end commit; acceptable for now, ticket if it bites.
+        cur = con.execute(
+            "update hypothesis set state = 'investigating', "
+            "updated_at = now() where hypothesis_id = %s "
+            "and state = 'triaged'", (hid,))
+        if cur.rowcount == 0:
+            con.execute("release savepoint inv_item")
+            continue
         try:
-            con.execute("update hypothesis set state = 'investigating', "
-                        "updated_at = now() where hypothesis_id = %s", (hid,))
             out = _loop(con, h, prompt_base, model)
         except llm.EngineUnavailable as e:
             # mid-loop outage: the state flip rolls back with the savepoint,
@@ -166,6 +176,14 @@ def run(con) -> dict:
             print(f"investigate: paused, no model available ({e})")
             paused = True
             break
+        except Exception as e:
+            # one bad item (malformed output, CLI timeout) must not roll back
+            # the whole stage or poison the queue head — extract.run pattern
+            con.execute("rollback to savepoint inv_item")
+            record_failure(con, h, "investigate", e)
+            print(f"investigate: item {hid} failed ({e})")
+            failed += 1
+            continue
         con.execute(
             "update hypothesis set evidence = %s, lineages = %s, "
             "confidence = %s where hypothesis_id = %s",
@@ -176,5 +194,5 @@ def run(con) -> dict:
         con.execute("release savepoint inv_item")
         investigated += 1
 
-    print(f"investigate: {investigated} investigated")
-    return {"investigated": investigated, "paused": paused}
+    print(f"investigate: {investigated} investigated, {failed} failed")
+    return {"investigated": investigated, "failed": failed, "paused": paused}

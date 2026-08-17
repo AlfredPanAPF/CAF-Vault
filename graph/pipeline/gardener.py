@@ -17,9 +17,11 @@ def run(con) -> dict:
         "where status='asserted' group by 1 order by count(*) desc, 1").fetchall()
     latest = con.execute("select max(version) as v from predicate_map"
                          ).fetchone()["v"]
-    mapped = set() if latest is None else {r["predicate_raw"] for r in con.execute(
-        "select predicate_raw from predicate_map where version=%s", (latest,))}
-    unmapped = [r for r in raws if r["raw"] not in mapped]
+    prev = {} if latest is None else {
+        r["predicate_raw"]: r["predicate_canon"] for r in con.execute(
+            "select predicate_raw, predicate_canon from predicate_map "
+            "where version=%s", (latest,))}
+    unmapped = [r for r in raws if r["raw"] not in prev]
 
     triggered = (len(raws) >= TRIGGER_FIRST if latest is None
                  else len(unmapped) >= TRIGGER_UNMAPPED)
@@ -29,23 +31,40 @@ def run(con) -> dict:
         return {"triggered": False, "raws": len(raws),
                 "unmapped": len(unmapped)}
 
+    # Delta prompting: the open vocabulary grows without bound, so the model
+    # only sees the UNMAPPED raws plus the current canon list — already-mapped
+    # raws carry their previous canon forward in code below, and the write is
+    # still a full version (append-only invariant intact).
+    canons_now = sorted(set(prev.values()))
     prompt = ((config.PROMPTS / "gardener.md").read_text()
               + "\n\n# Raw predicates (predicate, claim count)\n\n"
-              + "\n".join(f"{r['raw']}, {r['n']}" for r in raws))
+              + "\n".join(f"{r['raw']}, {r['n']}" for r in unmapped)
+              + ("\n\n# Existing canonical predicates (reuse when a raw "
+                 "predicate is a synonym of one of these)\n\n"
+                 + "\n".join(canons_now) if canons_now else ""))
+    # output scales with the number of raws in the prompt; ~12 tokens per
+    # mapping line, floored at the old default and capped at the model limit
+    max_tokens = min(max(8000, 12 * len(unmapped) + 500), 32000)
     try:
-        out = llm.complete_json(prompt, config.MODELS["garden"])
+        out = llm.complete_json(prompt, config.MODELS["garden"],
+                                max_tokens=max_tokens)
+        mapping = out.get("mapping")
+        if not isinstance(mapping, dict):
+            raise ValueError("gardener response has no mapping object")
     except llm.EngineUnavailable as e:
         print(f"garden: paused, no model available ({e})")
         return {"triggered": True, "paused": True}
-
-    mapping = out.get("mapping")
-    if not isinstance(mapping, dict):
-        raise ValueError("gardener response has no mapping object")
+    except Exception as e:
+        # malformed/truncated output or a CLI-side error: record the failure
+        # instead of crashing the stage; the trigger re-fires next cycle
+        print(f"garden: failed ({e})")
+        return {"triggered": True, "failed": str(e)[:500]}
 
     # code disposes: canons snake_case, every input raw exactly once (first
-    # assignment wins), unknown raws dropped, missing raws self-mapped
+    # assignment wins — previously mapped raws keep their prior canon),
+    # unknown raws dropped, missing raws self-mapped
     input_set = {r["raw"] for r in raws}
-    assigned = {}
+    assigned = {raw: canon for raw, canon in prev.items() if raw in input_set}
     duplicates = 0
     for canon_name, raw_list in mapping.items():
         canon_norm = re.sub(r"[^a-z0-9]+", "_", str(canon_name).lower()).strip("_")

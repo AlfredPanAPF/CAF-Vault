@@ -9,11 +9,13 @@ on the test connection first (same idiom as test_pipeline.py). Run alone:
 """
 import os
 import uuid as uuid_mod
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 
 from graph import db, webapp
+from graph.pipeline import adjudicate, resolve
 
 
 def _mk_event(con, connector="rss", source_name="reviewapi-feed",
@@ -121,10 +123,14 @@ def test_api_alerts_list_read_and_read_all(con):
     assert {a["alert_id"] for a in unread_only["alerts"]} == {str(a1), str(a2)}
 
     assert client.post(f"/api/alerts/{a1}/read").json() == {"ok": True}
-    assert con.execute("select read_at from alert where alert_id=%s",
-                       (a1,)).fetchone()["read_at"] is not None
-    # idempotent re-read; unknown alerts 404
+    first_read_at = con.execute("select read_at from alert where alert_id=%s",
+                                (a1,)).fetchone()["read_at"]
+    assert first_read_at is not None
+    # idempotent re-read: the original read_at timestamp is preserved
     assert client.post(f"/api/alerts/{a1}/read").status_code == 200
+    assert con.execute("select read_at from alert where alert_id=%s",
+                       (a1,)).fetchone()["read_at"] == first_read_at
+    # unknown alerts 404
     assert client.post(f"/api/alerts/{uuid_mod.uuid4()}/read").status_code == 404
 
     # status counts pick up the one alert still unread
@@ -157,6 +163,8 @@ def test_api_digest(con):
     old_evt, old_lin = _mk_event(con, source_name="digest-feed")
     _mk_claim(con, old_evt, old_lin, "Digest watch corp", "supplies",
               "old widget", subject_entity=watch, days_ago=10)  # outside 24h
+    con.execute("update event set fetched_at = now() - interval '10 days' "
+                "where event_id = %s", (old_evt,))  # outside the events window
     hyp = _mk_hypothesis(con, [watch, other], state="promoted")
     con.execute("insert into alert (kind, title, hypothesis_id) values "
                 "('promoted_link', 'New link: A and B', %s)", (hyp,))
@@ -176,10 +184,26 @@ def test_api_digest(con):
     body = client.get("/api/digest").json()
     assert body["since"] is not None
     assert body["claims"] >= 5
-    assert body["events"].get("rss", 0) >= 2
+    # the 24h window excludes the backdated claim: strictly fewer than the
+    # table total (other suite files commit claims, so no exact total here)
+    total = con.execute("select count(*) n from claim").fetchone()["n"]
+    assert body["claims"] < total
+    # the events window excludes the backdated event: count in-window rows
+    # with the response's own 'since' so the boundary is race-free
+    since = datetime.fromisoformat(body["since"])
+    rss_in_window = con.execute(
+        "select count(*) n from event where connector='rss' "
+        "and fetched_at >= %s", (since,)).fetchone()["n"]
+    assert rss_in_window >= 2
+    assert body["events"].get("rss", 0) == rss_in_window
+    rss_all = con.execute("select count(*) n from event "
+                          "where connector='rss'").fetchone()["n"]
+    assert rss_in_window < rss_all
     top = body["top_entities"]
     assert top[0]["entity_id"] == str(watch)  # watchlist first
-    assert top[0]["claims"] >= 5              # the 10-day-old claim is excluded
+    # exactly this test's 5 fresh claims: the entity is freshly inserted here,
+    # so nothing else references it, and the 10-day-old claim is excluded
+    assert top[0]["claims"] == 5
     assert {"hypothesis_id": str(hyp),
             "title": "New link: A and B"} in body["promoted"]
     assert {"hypothesis_id": str(hyp),
@@ -187,8 +211,12 @@ def test_api_digest(con):
     assert body["contradictions_open"] >= 1
     assert body["failed_events"] >= 1
 
-    # hours clamps to a week instead of failing
-    assert client.get("/api/digest", params={"hours": 999999}).status_code == 200
+    # hours clamps to a week: 'since' lands ~168h back, not 999999h
+    r = client.get("/api/digest", params={"hours": 999999})
+    assert r.status_code == 200
+    age = (datetime.now(timezone.utc)
+           - datetime.fromisoformat(r.json()["since"]))
+    assert timedelta(hours=167) < age < timedelta(hours=169)
 
 
 # ---------------------------------------------------------------- er queue
@@ -203,6 +231,8 @@ def test_api_er_queue_list_and_decide(con, tmp_path):
                                      meta={"title": "ER doc"})
     claim_id = _mk_claim(con, event_id, lineage_id, "Vexatron Industries",
                          "reports", "rising costs")
+    claim_new = _mk_claim(con, event_id, lineage_id, "Vexatron Labs",
+                          "builds", "widgets")
 
     def queue(surface, candidates, decision=None):
         mention_id = con.execute(
@@ -263,13 +293,25 @@ def test_api_er_queue_list_and_decide(con, tmp_path):
               for i in client.get("/api/er-queue").json()["recent"]}
     assert recent[str(m_match)]["decision"]["decision"] == "match"
 
-    # new_entity creates the company under the given name
+    # new_entity creates the company under the given name...
     r = client.post(f"/api/er-queue/{m_new}/decide",
                     json={"decision": "new_entity", "name": "Vexatron Labs Inc"})
     assert r.status_code == 200
+    new_entity_id = r.json()["entity_id"]
     ent = con.execute("select canonical_name from entity where entity_id=%s",
-                      (r.json()["entity_id"],)).fetchone()
+                      (new_entity_id,)).fetchone()
     assert ent["canonical_name"] == "Vexatron Labs Inc"
+    # ...resolves the mention to it, marks the queue row decided, and re-links
+    # claims carrying that surface — the decision's whole point
+    mention = con.execute("select * from mention where mention_id=%s",
+                          (m_new,)).fetchone()
+    assert str(mention["resolved_entity"]) == new_entity_id
+    assert mention["resolver"] == "adjudicated-v1:new_entity"
+    assert con.execute("select status from er_queue where mention_id=%s",
+                       (m_new,)).fetchone()["status"] == "decided"
+    assert str(con.execute(
+        "select subject_entity from claim where claim_id=%s",
+        (claim_new,)).fetchone()["subject_entity"]) == new_entity_id
 
     # not_a_company clears the mention without an entity
     r = client.post(f"/api/er-queue/{m_not}/decide",
@@ -473,6 +515,101 @@ def test_api_contradictions_list_and_resolve(con):
                       params={"status": "bogus"}).status_code == 400
 
 
+def test_api_contradiction_resolve_stale_side_dismisses(con):
+    """Two open contradictions sharing a claim: resolving the second after its
+    shared claim was superseded must NOT rewrite the existing superseded_by
+    pointer or endorse a dead winner — it dismisses as stale instead."""
+    client = TestClient(webapp.app)
+    subj = _mk_entity(con, "Stale conflict corp")
+    event_id, lineage_id = _mk_event(con, source_name="stale-feed")
+    cx = _mk_claim(con, event_id, lineage_id, "Stale conflict corp", "ceo is",
+                   "Chief X", subject_entity=subj)
+    cy = _mk_claim(con, event_id, lineage_id, "Stale conflict corp", "ceo is",
+                   "Chief Y", subject_entity=subj)
+    cz = _mk_claim(con, event_id, lineage_id, "Stale conflict corp", "ceo is",
+                   "Chief Z", subject_entity=subj)
+
+    def contradiction(a, b):
+        return con.execute(
+            "insert into contradiction (subject_entity, predicate_canon, "
+            "claim_a, claim_b, kind) values (%s, 'ceo', %s, %s, "
+            "'object_conflict') returning contradiction_id",
+            (subj, a, b)).fetchone()["contradiction_id"]
+
+    t_xy = contradiction(cx, cy)
+    t_xz = contradiction(cx, cz)
+    con.commit()
+
+    # resolve (X,Y) keeping Y: X superseded_by=Y
+    assert client.post(f"/api/contradictions/{t_xy}/resolve",
+                       json={"keep": "b"}).json() == {"ok": True}
+    x = con.execute("select status, superseded_by from claim "
+                    "where claim_id=%s", (cx,)).fetchone()
+    assert x["status"] == "superseded"
+    assert x["superseded_by"] == cy
+
+    # (X,Z) is now stale in either direction: keep=b (superseding X again)
+    # must not overwrite X.superseded_by, keep=a (keeping dead X) must not
+    # record an ineffective verdict — both dismiss as stale
+    r = client.post(f"/api/contradictions/{t_xz}/resolve", json={"keep": "b"})
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "stale": True}
+    t = con.execute("select * from contradiction where contradiction_id=%s",
+                    (t_xz,)).fetchone()
+    assert t["status"] == "dismissed"
+    assert t["resolution"] == {"reason": "stale",
+                               "superseded_claim": str(cx)}
+    # the earlier supersession's audit pointer is intact, Z untouched
+    x = con.execute("select status, superseded_by from claim "
+                    "where claim_id=%s", (cx,)).fetchone()
+    assert x["superseded_by"] == cy
+    assert con.execute("select status from claim where claim_id=%s",
+                       (cz,)).fetchone()["status"] == "asserted"
+    # no review label was written for the unapplied verdict
+    assert con.execute(
+        "select 1 from review_label where kind='contradiction' and target=%s",
+        (t_xz,)).fetchone() is None
+
+
+# ---------------------------------------------------------------- er race
+
+
+def test_apply_decision_respects_prior_decision(con):
+    """The worker's adjudicate pass must not clobber a decision that landed
+    while its LLM call was in flight: the guarded queue-row claim returns the
+    already_decided sentinel and writes nothing."""
+    event_id, lineage_id = _mk_event(con, source_name="race-feed")
+    mention_id = con.execute(
+        "insert into mention (event_id, surface, resolver) values "
+        "(%s, 'Racington Corp', 'queued') returning mention_id",
+        (event_id,)).fetchone()["mention_id"]
+    human = {"decision": "not_a_company", "decided_by": "web"}
+    con.execute(
+        "insert into er_queue (mention_id, candidates, status, decision, "
+        "decided_at) values (%s, '[]'::jsonb, 'decided', %s, now())",
+        (mention_id, Jsonb(human)))
+    con.execute("update mention set resolver='not_company' "
+                "where mention_id=%s", (mention_id,))
+
+    row = {"mention_id": mention_id, "surface": "Racington Corp",
+           "candidates": []}
+    llm_verdict = {"decision": "new_entity", "entity_hint": "Racington Corp",
+                   "confidence": 0.9}
+    entities_before = con.execute("select count(*) n from entity"
+                                  ).fetchone()["n"]
+    assert adjudicate.apply_decision(con, row, llm_verdict) == \
+        ("already_decided", None)
+    # nothing written: the human decision stands, no spurious entity row
+    q = con.execute("select status, decision from er_queue "
+                    "where mention_id=%s", (mention_id,)).fetchone()
+    assert q["status"] == "decided"
+    assert q["decision"] == human
+    assert con.execute("select resolver from mention where mention_id=%s",
+                       (mention_id,)).fetchone()["resolver"] == "not_company"
+    assert con.execute("select count(*) n from entity"
+                       ).fetchone()["n"] == entities_before
+
+
 # ---------------------------------------------------------------- retry-all
 
 
@@ -557,6 +694,142 @@ def test_api_entity_merge_unmerge(con):
     assert db.entity_canonical_for(con, d) == d
     assert db.entity_canonical_for(con, a) == c
     assert client.post(f"/api/entities/{d}/unmerge").status_code == 404
+
+
+def test_entity_same_as_one_active_index_backstop(con):
+    """The partial unique index turns concurrent duplicate merges (which slip
+    past the endpoint's plain-read check) into a unique violation the endpoint
+    maps to 409 — never duplicate active rows or an active cycle."""
+    import pytest
+    from psycopg import errors
+
+    a = _mk_entity(con, "Idxco A")
+    b = _mk_entity(con, "Idxco B")
+    c = _mk_entity(con, "Idxco C")
+    con.execute("insert into entity_same_as (a, b, decided_by) values "
+                "(%s, %s, 'test')", (a, b))
+    with pytest.raises(errors.UniqueViolation):
+        con.execute("insert into entity_same_as (a, b, decided_by) values "
+                    "(%s, %s, 'test')", (a, c))
+
+
+def test_api_unmerge_undoes_chained_merge(con):
+    """Merging A into B re-points C (previously merged into A) to B; undoing
+    the A->B merge must also restore C->A — the association C->B was created
+    by the merge being reverted, no human ever decided it."""
+    client = TestClient(webapp.app)
+    a = _mk_entity(con, "Chainco A")
+    b = _mk_entity(con, "Chainco B")
+    c = _mk_entity(con, "Chainco C")
+    con.commit()
+
+    assert client.post(f"/api/entities/{c}/merge",
+                       json={"into": str(a)}).json()["ok"] is True
+    assert client.post(f"/api/entities/{a}/merge",
+                       json={"into": str(b)}).json()["ok"] is True
+    active = {r["a"]: r["b"] for r in con.execute(
+        "select a, b from entity_same_as where status='active' "
+        "and a = any(%s)", ([a, b, c],))}
+    assert active == {a: b, c: b}   # chained merge re-pointed C to B
+
+    assert client.post(f"/api/entities/{a}/unmerge").json() == {"ok": True}
+    active = {r["a"]: r["b"] for r in con.execute(
+        "select a, b from entity_same_as where status='active' "
+        "and a = any(%s)", ([a, b, c],))}
+    assert active == {c: a}         # C restored to A, B clean
+    assert db.entity_canonical_for(con, c) == a
+    assert db.entity_canonical_for(con, a) == a
+
+
+def test_api_unmerge_reverts_merge_caused_supersession(con):
+    """A bad merge that let the same-lineage auto-resolve supersede another
+    company's true claim is fully healed by unmerge: the claim returns to
+    asserted and the contradiction re-opens (design §2 rule 5, §15)."""
+    client = TestClient(webapp.app)
+    corp = _mk_entity(con, "Healco Corp")
+    inds = _mk_entity(con, "Healco Industries")
+    event_id, lineage_id = _mk_event(con, source_name="heal-feed")
+    con.execute(
+        "insert into mention (event_id, surface, resolved_entity, resolver) "
+        "values (%s, 'Healco Corp', %s, 'test-v1'), "
+        "(%s, 'Healco Industries', %s, 'test-v1')",
+        (event_id, corp, event_id, inds))
+    c_corp = _mk_claim(con, event_id, lineage_id, "Healco Corp",
+                       "reported_revenue", "3.0B", subject_entity=corp)
+    c_inds = _mk_claim(con, event_id, lineage_id, "Healco Industries",
+                       "reported_revenue", "1.2B", subject_entity=inds)
+    con.commit()
+
+    # wrong merge re-points the Industries claim onto Corp
+    assert client.post(f"/api/entities/{inds}/merge",
+                       json={"into": str(corp)}).json()["ok"] is True
+    resolve.link_claims(con)
+    # simulate the damage a pre-gate auto-resolve did: Industries' true claim
+    # superseded by Corp's, contradiction recorded as same-lineage auto
+    con.execute("update claim set status='superseded', superseded_by=%s "
+                "where claim_id=%s", (c_corp, c_inds))
+    tid = con.execute(
+        "insert into contradiction (subject_entity, predicate_canon, claim_a, "
+        "claim_b, kind, status, resolution, resolved_at) values "
+        "(%s, 'reported_revenue', %s, %s, 'literal_conflict', "
+        "'auto_resolved', %s, now()) returning contradiction_id",
+        (corp, c_corp, c_inds,
+         Jsonb({"kept": str(c_corp), "mode": "same_lineage"}))
+    ).fetchone()["contradiction_id"]
+    con.commit()
+
+    assert client.post(f"/api/entities/{inds}/unmerge").json() == {"ok": True}
+    healed = con.execute("select status, superseded_by from claim "
+                         "where claim_id=%s", (c_inds,)).fetchone()
+    assert healed["status"] == "asserted"
+    assert healed["superseded_by"] is None
+    t = con.execute("select * from contradiction where contradiction_id=%s",
+                    (tid,)).fetchone()
+    assert t["status"] == "open"
+    assert t["resolution"]["reopened_by"] == "unmerge"
+    # the winner claim was never touched
+    assert con.execute("select status from claim where claim_id=%s",
+                       (c_corp,)).fetchone()["status"] == "asserted"
+
+
+# ---------------------------------------------------------------- claim status
+
+
+def test_api_claims_hide_superseded_by_default(con):
+    client = TestClient(webapp.app)
+    ent = _mk_entity(con, "Statusco")
+    event_id, lineage_id = _mk_event(con, source_name="status-feed")
+    live = _mk_claim(con, event_id, lineage_id, "Statusco", "supplies",
+                     "live widget qqstatus", subject_entity=ent)
+    dead = _mk_claim(con, event_id, lineage_id, "Statusco", "supplies",
+                     "dead widget qqstatus", subject_entity=ent)
+    con.execute("update claim set status='superseded', superseded_by=%s "
+                "where claim_id=%s", (live, dead))
+    con.commit()
+
+    # default view: asserted only, and rows carry their status
+    body = client.get("/api/claims", params={"q": "qqstatus"}).json()
+    assert body["total"] == 1
+    assert [c["claim_id"] for c in body["claims"]] == [str(live)]
+    assert body["claims"][0]["status"] == "asserted"
+    assert body["claims"][0]["superseded_by"] is None
+
+    # the audit view opts back in and links the loser to its winner
+    body = client.get("/api/claims",
+                      params={"q": "qqstatus", "status": "all"}).json()
+    assert body["total"] == 2
+    by_id = {c["claim_id"]: c for c in body["claims"]}
+    assert by_id[str(dead)]["status"] == "superseded"
+    assert by_id[str(dead)]["superseded_by"] == str(live)
+    body = client.get("/api/claims",
+                      params={"q": "qqstatus", "status": "superseded"}).json()
+    assert [c["claim_id"] for c in body["claims"]] == [str(dead)]
+    assert client.get("/api/claims",
+                      params={"status": "bogus"}).status_code == 400
+
+    # the entity timeline shows current claims only
+    page = client.get(f"/api/entity/{ent}").json()
+    assert [c["claim_id"] for c in page["claims"]] == [str(live)]
 
 
 # ---------------------------------------------------------------- claim_json

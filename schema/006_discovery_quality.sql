@@ -32,6 +32,7 @@ create table alert (
 create index on alert (created_at desc);
 create index on alert (read_at) where read_at is null;
 -- one alert per (kind, event) and per (kind, hypothesis)
+-- (008 narrows alert_hyp_uniq: hypothesis_wake re-emits on every wake)
 create unique index alert_event_uniq on alert (kind, event_id)
     where event_id is not null;
 create unique index alert_hyp_uniq on alert (kind, hypothesis_id)

@@ -59,6 +59,14 @@ def apply_decision(con, row, d):
     with d stored verbatim. row needs mention_id / surface / candidates.
     A 'match' that cannot be pinned to a registry record degrades to
     'ambiguous' with nothing written; retry bookkeeping stays with the caller.
+
+    The queue row is claimed (status pending -> decided) BEFORE any mention or
+    entity write: if a concurrent decision (human via the review API racing
+    the worker's batched LLM pass, or vice versa) got there first, the guarded
+    update matches nothing and ("already_decided", None) comes back with
+    nothing written — the first verdict stands. _match_entity may run before
+    the claim; its registry-keyed get-or-creates are idempotent upserts.
+
     Shared by run() and the review API. Returns (decision, entity_id)."""
     decision = d.get("decision")
     confidence = d.get("confidence") or 0.8
@@ -68,6 +76,15 @@ def apply_decision(con, row, d):
         if entity_id is None:
             # a match we cannot pin to a registry record is not a match
             return "ambiguous", None
+    elif decision not in ("new_entity", "not_a_company"):
+        return decision, None
+    claimed = con.execute(
+        "update er_queue set status='decided', decision=%s, decided_at=now() "
+        "where mention_id=%s and status='pending' returning mention_id",
+        (Jsonb(d), row["mention_id"])).fetchone()
+    if claimed is None:
+        return "already_decided", None
+    if decision == "match":
         con.execute(
             "update mention set resolved_entity=%s, "
             "resolver='adjudicated-v1:match', confidence=%s where mention_id=%s",
@@ -82,15 +99,10 @@ def apply_decision(con, row, d):
             "update mention set resolved_entity=%s, "
             "resolver='adjudicated-v1:new_entity', confidence=%s where mention_id=%s",
             (entity_id, confidence, row["mention_id"]))
-    elif decision == "not_a_company":
+    else:   # not_a_company
         con.execute(
             "update mention set resolver='not_company', confidence=%s "
             "where mention_id=%s", (confidence, row["mention_id"]))
-    else:
-        return decision, None
-    con.execute(
-        "update er_queue set status='decided', decision=%s, decided_at=now() "
-        "where mention_id=%s", (Jsonb(d), row["mention_id"]))
     return decision, entity_id
 
 
@@ -138,19 +150,27 @@ def run(con, limit=20):
             counts["skipped"] += 1
             continue
         decision, _ = apply_decision(con, r, d)
+        if decision == "already_decided":
+            # a human decided this row while the LLM call was in flight;
+            # their verdict stands, nothing was written
+            counts["already_decided"] += 1
+            continue
         if decision == "ambiguous":
             if d.get("decision") == "match":
                 d = {**d, "decision": "ambiguous",
                      "note": "match without usable registry id"}
             passes = ((r["prior"] or {}).get("passes") or 0) + 1
+            # status='pending' guards: an LLM 'ambiguous' must never flip or
+            # overwrite a row a human decided during the call
             if passes >= MAX_PASSES:
                 con.execute(
                     "update er_queue set status='failed', decision=%s, "
-                    "decided_at=now() where mention_id=%s",
+                    "decided_at=now() where mention_id=%s and status='pending'",
                     (Jsonb({**d, "passes": passes}), r["mention_id"]))
                 counts["failed"] += 1
             else:
-                con.execute("update er_queue set decision=%s where mention_id=%s",
+                con.execute("update er_queue set decision=%s "
+                            "where mention_id=%s and status='pending'",
                             (Jsonb({**d, "passes": passes}), r["mention_id"]))
                 counts["ambiguous"] += 1
             continue

@@ -90,6 +90,8 @@ export interface StatusCounts {
   edges: { asserted: number; inferred: number };
   er_queue: { pending: number; decided: number; failed: number };
   hypotheses: Record<string, number>;
+  alerts_unread: number;
+  contradictions_open: number;
 }
 
 export interface SourceRow {
@@ -136,9 +138,13 @@ export interface Claim {
   claim_id: string;
   subject: ClaimSubject;
   predicate: string;
+  predicate_canon: string | null;
   object: ClaimObject;
   stance: string | null;
+  status: string;
+  superseded_by: string | null;
   confidence: number | null;
+  confidence_now: number | null;
   evidence_quote: string | null;
   observed_at: string;
   published_at: string | null;
@@ -189,9 +195,21 @@ export interface EntityResponse {
     kind: string;
     registry_refs: Record<string, unknown>;
   };
+  merged_from: EntityPeer[];
   aliases: string[];
   claims: Claim[];
   edges: { asserted: EdgeRow[]; inferred: EdgeRow[] };
+}
+
+export function mergeEntity(entityId: string, into: string): Promise<{ ok: boolean; into: string }> {
+  return apiFetch(`/api/entities/${entityId}/merge`, {
+    method: "POST",
+    body: JSON.stringify({ into }),
+  });
+}
+
+export function unmergeEntity(entityId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/entities/${entityId}/unmerge`, { method: "POST" });
 }
 
 // ─── /api/hypotheses ─────────────────────────────────────────
@@ -201,8 +219,224 @@ export interface Hypothesis {
   type: string;
   subjects: EntityPeer[];
   state: string;
+  score: number | null;
   rationale: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface TestPlan {
+  confirm?: string[];
+  refute?: string[];
+}
+
+export interface HypothesisHistoryEntry {
+  at?: string;
+  from?: string | null;
+  to?: string | null;
+  note?: string | null;
+}
+
+export interface HypothesisDetail {
+  hypothesis: {
+    hypothesis_id: string;
+    type: string;
+    statement: { text?: string; template?: string; via_entity?: string } | null;
+    rationale: string | null;
+    test_plan: TestPlan | null;
+    score: number | null;
+    state: string;
+    confidence: number | null;
+    wake_conditions: Record<string, unknown> | null;
+    parked_at: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  subjects: EntityPeer[];
+  evidence: Claim[];
+  lineages: number;
+  verifier: Record<string, unknown> | null;
+  history: HypothesisHistoryEntry[];
+}
+
+export function getHypotheses(state = ""): Promise<Hypothesis[]> {
+  const suffix = state ? `?state=${encodeURIComponent(state)}` : "";
+  return apiFetch(`/api/hypotheses${suffix}`);
+}
+
+export function getHypothesis(hypothesisId: string): Promise<HypothesisDetail> {
+  return apiFetch(`/api/hypotheses/${hypothesisId}`);
+}
+
+export function reviewHypothesis(
+  hypothesisId: string,
+  verdict: "accept" | "reject",
+): Promise<{ ok: boolean; state: string }> {
+  return apiFetch(`/api/hypotheses/${hypothesisId}/review`, {
+    method: "POST",
+    body: JSON.stringify({ verdict }),
+  });
+}
+
+// ─── /api/alerts ─────────────────────────────────────────────
+
+export interface Alert {
+  alert_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  entities: EntityPeer[];
+  event_id: string | null;
+  hypothesis_id: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface AlertsResponse {
+  unread: number;
+  alerts: Alert[];
+}
+
+export function getAlerts(opts: { limit?: number; unread?: boolean } = {}): Promise<AlertsResponse> {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.unread) params.set("unread", "true");
+  const qs = params.toString();
+  return apiFetch(`/api/alerts${qs ? `?${qs}` : ""}`);
+}
+
+export function markAlertRead(alertId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/alerts/${alertId}/read`, { method: "POST" });
+}
+
+export function markAllAlertsRead(): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch("/api/alerts/read-all", { method: "POST" });
+}
+
+// ─── /api/digest ─────────────────────────────────────────────
+
+export interface DigestEntity {
+  entity_id: string;
+  name: string;
+  claims: number;
+}
+
+export interface DigestHypothesis {
+  hypothesis_id: string | null;
+  title: string;
+}
+
+export interface DigestResponse {
+  since: string;
+  claims: number;
+  events: Record<string, number>;
+  top_entities: DigestEntity[];
+  promoted: DigestHypothesis[];
+  woke: DigestHypothesis[];
+  contradictions_open: number;
+  failed_events: number;
+}
+
+export function getDigest(hours?: number): Promise<DigestResponse> {
+  const suffix = hours !== undefined ? `?hours=${hours}` : "";
+  return apiFetch(`/api/digest${suffix}`);
+}
+
+// ─── /api/er-queue ───────────────────────────────────────────
+
+export interface ErCandidate {
+  title: string;
+  cik?: number | null;
+  ticker?: string | null;
+  lei?: string | null;
+  country?: string | null;
+  status?: string | null;
+  registry?: string | null;
+}
+
+export interface ErQueueItem {
+  mention_id: string;
+  surface: string;
+  context: string;
+  doc_title: string | null;
+  source_name: string | null;
+  connector: string;
+  candidates: ErCandidate[];
+  created_at: string;
+  passes: number;
+}
+
+export interface ErQueueRecent {
+  mention_id: string;
+  surface: string;
+  doc_title: string | null;
+  source_name: string | null;
+  connector: string;
+  decision: Record<string, unknown> | null;
+  decided_at: string | null;
+}
+
+export interface ErQueueResponse {
+  pending: number;
+  items: ErQueueItem[];
+  recent: ErQueueRecent[];
+}
+
+export interface ErDecideBody {
+  decision: "match" | "new_entity" | "not_a_company";
+  cik?: number;
+  lei?: string;
+  name?: string;
+}
+
+export function getErQueue(opts: { status?: string; limit?: number } = {}): Promise<ErQueueResponse> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  return apiFetch(`/api/er-queue${qs ? `?${qs}` : ""}`);
+}
+
+export function decideErQueue(
+  mentionId: string,
+  body: ErDecideBody,
+): Promise<{ ok: boolean; entity_id: string | null }> {
+  return apiFetch(`/api/er-queue/${mentionId}/decide`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// ─── /api/contradictions ─────────────────────────────────────
+
+export interface Contradiction {
+  contradiction_id: string;
+  subject: EntityPeer;
+  predicate_canon: string;
+  kind: string;
+  status: string;
+  claims: { a: Claim | null; b: Claim | null };
+  created_at: string;
+}
+
+export function getContradictions(status = "open"): Promise<Contradiction[]> {
+  return apiFetch(`/api/contradictions?status=${encodeURIComponent(status)}`);
+}
+
+export function resolveContradiction(
+  contradictionId: string,
+  keep: "a" | "b" | "none",
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/contradictions/${contradictionId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ keep }),
+  });
+}
+
+// ─── /api/events/retry-all ───────────────────────────────────
+
+export function retryAllEvents(): Promise<{ ok: boolean; retried: number }> {
+  return apiFetch("/api/events/retry-all", { method: "POST" });
 }
 
 // ─── /api/sources ────────────────────────────────────────────

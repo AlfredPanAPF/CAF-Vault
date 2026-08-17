@@ -16,9 +16,13 @@ RESOLVED_TYPES = {"company", "security"}  # v0 resolves only these (design §6)
 def run(con, limit=10):
     prompt_base = (config.PROMPTS / "extraction.md").read_text()
     model = config.MODELS["extract"]
+    # triage is not null: every event gets its materiality score (and any
+    # material_event alert) before extraction consumes it — an untriaged event
+    # waits a cycle rather than skipping triage forever (spec §4.1, §8 order)
     events = con.execute(
         "select event_id, artifact_uri, lineage_id, attempts from event "
-        "where status='pending' order by fetched_at limit %s", (limit,)).fetchall()
+        "where status='pending' and triage is not null "
+        "order by fetched_at limit %s", (limit,)).fetchall()
 
     extracted = failed = n_claims = n_mentions = 0
     paused = False

@@ -38,6 +38,27 @@ def parse_uuid(v):
         return None
 
 
+FAILURES_MAX = 2   # strikes before a poison item is taken off the queue
+
+
+def record_failure(con, h, stage, err):
+    """Per-item failure bookkeeping for the LLM stages (extract.run pattern):
+    call AFTER the item's savepoint rolled back, so the record survives. The
+    error lands in history; after FAILURES_MAX error entries the row is parked
+    (out of every selection query, revivable via wake/review) instead of being
+    re-selected and re-burned every cycle forever."""
+    errors = sum(1 for e in (h["history"] or []) if "error" in e) + 1
+    append_history(con, h["hypothesis_id"],
+                   {"error": str(err)[:500], "stage": stage})
+    if errors >= FAILURES_MAX:
+        con.execute(
+            "update hypothesis set state='parked', parked_at=now() "
+            "where hypothesis_id=%s", (h["hypothesis_id"],))
+        append_history(con, h["hypothesis_id"],
+                       {"from": h["state"], "to": "parked",
+                        "note": f"parked after {errors} {stage} failures"})
+
+
 def run(con) -> dict:
     cfg = config.DISCOVERY
     watched = {r["entity_id"] for r in con.execute(

@@ -16,12 +16,18 @@ TEST_PLAN = {
 }
 
 
+# cap per side: every re-filed 8-K re-asserts a matching claim, so on a mature
+# corpus one pair can match hundreds — the stored evidence array stays bounded
+SIDE_CLAIMS_CAP = 30
+
+
 def _side_claims(con, subject, via):
     return con.execute(
         "select claim_id, predicate_raw, evidence_quote from claim "
         "where status = 'asserted' and subject_entity = %s and object_entity = %s "
-        "and predicate_raw ilike any(%s)",
-        (subject, via, PATTERNS)).fetchall()
+        "and predicate_raw ilike any(%s) "
+        "order by observed_at desc, claim_id limit %s",
+        (subject, via, PATTERNS, SIDE_CLAIMS_CAP)).fetchall()
 
 
 def run(con) -> dict:

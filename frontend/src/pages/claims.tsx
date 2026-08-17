@@ -89,6 +89,8 @@ function fmtConfidence(confidence: number): string {
 
 export function ClaimRow({ claim }: { claim: Claim }) {
   const [expanded, setExpanded] = useState(false);
+  // staleness-decayed value when the API provides it (spec v3 §5.3)
+  const confidence = claim.confidence_now ?? claim.confidence;
   const quote = claim.evidence_quote ?? "";
   const expandable = quote.length > QUOTE_LIMIT;
   const shown =
@@ -133,6 +135,14 @@ export function ClaimRow({ claim }: { claim: Claim }) {
             <span>{fmtDate(claim.published_at)}</span>
           </>
         )}
+        {claim.status && claim.status !== "asserted" && (
+          <>
+            <Dot />
+            <Tooltip label="Withdrawn from the current view: a newer claim superseded this one.">
+              <Badge tone="warn">{stanceLabel(claim.status)}</Badge>
+            </Tooltip>
+          </>
+        )}
         {claim.stance && claim.stance !== "stated" && (
           <>
             <Dot />
@@ -141,11 +151,11 @@ export function ClaimRow({ claim }: { claim: Claim }) {
             </Tooltip>
           </>
         )}
-        {claim.confidence !== null && (
+        {confidence !== null && (
           <>
             <Dot />
             <Tooltip label={CONFIDENCE_TIP}>
-              <span className="font-mono">{fmtConfidence(claim.confidence)}</span>
+              <span className="font-mono">{fmtConfidence(confidence)}</span>
             </Tooltip>
           </>
         )}
@@ -164,6 +174,7 @@ export function ClaimsPage() {
   const stance = searchParams.get("stance") ?? "";
   const sector = searchParams.get("sector") ?? "";
   const days = searchParams.get("days") ?? "";
+  const entity = searchParams.get("entity") ?? "";
 
   const setParam = (key: string, value: string) => {
     setSearchParams(
@@ -198,7 +209,7 @@ export function ClaimsPage() {
   }, [search]);
 
   const query = useInfiniteQuery({
-    queryKey: ["claims", { q, predicate, source, stance, sector, days }],
+    queryKey: ["claims", { q, predicate, source, stance, sector, days, entity }],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
@@ -207,6 +218,7 @@ export function ClaimsPage() {
       if (stance) params.set("stance", stance);
       if (sector) params.set("sector", sector);
       if (days) params.set("days", days);
+      if (entity) params.set("entity", entity);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pageParam));
       return apiFetch<ClaimsResponse>(`/api/claims?${params.toString()}`);
@@ -224,9 +236,11 @@ export function ClaimsPage() {
   );
   const total = query.data?.pages[0]?.total ?? 0;
 
+  // Canonical predicates when the gardener has mapped them, raw otherwise
+  // (spec v3 §6); the API filters on either form.
   const predicates = useMemo(() => {
     const set = new Set<string>();
-    for (const claim of claims) set.add(claim.predicate);
+    for (const claim of claims) set.add(claim.predicate_canon ?? claim.predicate);
     if (predicate) set.add(predicate);
     return [...set].sort();
   }, [claims, predicate]);
@@ -292,6 +306,11 @@ export function ClaimsPage() {
             <option value="30">30 days</option>
             <option value="">All</option>
           </Select>
+          {entity && (
+            <Button variant="ghost" size="sm" onClick={() => setParam("entity", "")}>
+              Clear company filter
+            </Button>
+          )}
         </div>
       </div>
 

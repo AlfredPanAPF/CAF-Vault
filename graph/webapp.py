@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from psycopg import errors as pg_errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
@@ -90,7 +91,7 @@ def predicate_canon_map(con):
 CLAIMS_SELECT = """
 select c.claim_id, c.subject_entity, c.subject_surface, c.predicate_raw,
        c.object_entity, c.object_surface, c.object_literal,
-       c.qualifiers->>'stance' as stance,
+       c.qualifiers->>'stance' as stance, c.status, c.superseded_by,
        c.evidence_quote, c.confidence, c.observed_at, c.event_id,
        se.canonical_name as subject_name, oe.canonical_name as object_name,
        ev.published_at, ev.meta->>'title' as doc_title,
@@ -109,8 +110,15 @@ SOURCE_TYPES = ("edgar", "podcast", "rss", "manual")
 
 
 def claims_where(q="", predicate="", source_type="", stance="", sector="",
-                 days=None, entity=None):
+                 days=None, entity=None, status="asserted"):
     where, params = [], {}
+    # asserted-only by default: superseded/retracted claims are withdrawn from
+    # the current view; status='all' opts back into the append-only audit view
+    # (design §2). Claim fetches by explicit id (contradiction panel,
+    # hypothesis evidence) deliberately bypass this filter.
+    if status != "all":
+        where.append("c.status = %(status)s")
+        params["status"] = status
     if q:
         where.append(
             "(c.subject_surface ilike %(pat)s or c.object_surface ilike %(pat)s "
@@ -159,6 +167,8 @@ def claim_json(c, canon=None):
                    "entity_id": c["object_entity"],
                    "name": c["object_name"]},
         "stance": c["stance"],
+        "status": c["status"],
+        "superseded_by": c["superseded_by"],
         "confidence": c["confidence"],
         "confidence_now": staleness.confidence_now(
             c["confidence"], c["observed_at"], c["predicate_raw"]),
@@ -404,15 +414,18 @@ def create_app():
     @app.get("/api/claims")
     def api_claims(q: str = "", predicate: str = "", source_type: str = "",
                    stance: str = "", sector: str = "", days: int | None = None,
-                   entity: uuid.UUID | None = None, limit: int = 50,
-                   offset: int = 0, con=Depends(get_con)):
+                   entity: uuid.UUID | None = None, status: str = "asserted",
+                   limit: int = 50, offset: int = 0, con=Depends(get_con)):
         if source_type and source_type not in SOURCE_TYPES:
             raise HTTPException(
                 400, "source_type must be edgar, podcast, rss or manual")
+        if status not in ("asserted", "superseded", "retracted", "all"):
+            raise HTTPException(
+                400, "status must be asserted, superseded, retracted or all")
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
         where, params = claims_where(q.strip(), predicate, source_type,
-                                     stance, sector, days, entity)
+                                     stance, sector, days, entity, status)
         total = con.execute(
             f"select count(*) n {CLAIMS_FROM} {where}", params).fetchone()["n"]
         rows = con.execute(
@@ -490,6 +503,12 @@ def create_app():
     @app.post("/api/entities/{entity_id}/merge")
     def api_merge_entity(entity_id: uuid.UUID, body: MergeBody,
                          con=Depends(get_con)):
+        # Merges are rare human admin actions: serialize them all on one
+        # transaction-scoped advisory lock so every guard below runs against
+        # committed state — two concurrent opposite merges would otherwise
+        # both pass the plain-read checks and insert an active same_as cycle.
+        con.execute(
+            "select pg_advisory_xact_lock(hashtext('entity_same_as:merge'))")
         if body.into == entity_id:
             raise HTTPException(400, "Cannot merge an entity into itself.")
         ids = [entity_id, body.into]
@@ -506,29 +525,99 @@ def create_app():
                        "where a=%s and status='active'",
                        (entity_id,)).fetchone():
             raise HTTPException(409, "Entity is already merged.")
-        con.execute(
-            "insert into entity_same_as (a, b, decided_by) values (%s, %s, 'web')",
-            (entity_id, target))
-        # entities absorbed into this one re-point to the new canonical
-        for r in con.execute(
-                "select a from entity_same_as where b=%s and status='active'",
-                (entity_id,)).fetchall():
+        # one merge_group per request ties the direct row and every chained
+        # re-point to this operation, so unmerge can undo all of it
+        merge_group = uuid.uuid4()
+        try:
             con.execute(
-                "update entity_same_as set status='reverted' "
-                "where a=%s and b=%s and status='active'", (r["a"], entity_id))
-            con.execute(
-                "insert into entity_same_as (a, b, decided_by, note) "
-                "values (%s, %s, 'web', 'chained merge')", (r["a"], target))
+                "insert into entity_same_as (a, b, decided_by, merge_group) "
+                "values (%s, %s, 'web', %s)", (entity_id, target, merge_group))
+            # entities absorbed into this one re-point to the new canonical
+            for r in con.execute(
+                    "select a from entity_same_as where b=%s and status='active'",
+                    (entity_id,)).fetchall():
+                con.execute(
+                    "update entity_same_as set status='reverted' "
+                    "where a=%s and b=%s and status='active'", (r["a"], entity_id))
+                con.execute(
+                    "insert into entity_same_as (a, b, decided_by, note, "
+                    "merge_group) values (%s, %s, 'web', 'chained merge', %s)",
+                    (r["a"], target, merge_group))
+        except pg_errors.UniqueViolation:
+            # backstop (entity_same_as_one_active): a double submit that
+            # slipped past the check surfaces like the sequential path
+            raise HTTPException(409, "Entity is already merged.")
         con.commit()
         return {"ok": True, "into": target}
 
     @app.post("/api/entities/{entity_id}/unmerge")
     def api_unmerge_entity(entity_id: uuid.UUID, con=Depends(get_con)):
-        cur = con.execute(
+        row = con.execute(
             "update entity_same_as set status='reverted' "
-            "where a=%s and status='active'", (entity_id,))
-        if cur.rowcount == 0:
+            "where a=%s and status='active' returning merge_group",
+            (entity_id,)).fetchone()
+        if row is None:
             raise HTTPException(404, "No active merge for that entity.")
+        # Undo the whole merge operation, not just the direct link: the merge
+        # that created this row also re-pointed every entity previously merged
+        # into entity_id (chained rows, same merge_group). Restore each one
+        # that is STILL ACTIVE back to entity_id — rows a human already
+        # unmerged separately stay unmerged. The restored row keeps the
+        # merge_group of the link it restores, so multi-level chains keep
+        # unwinding one operation at a time.
+        restored = []
+        if row["merge_group"] is not None:
+            for r in con.execute(
+                    "select a from entity_same_as where merge_group=%s "
+                    "and a<>%s and status='active'",
+                    (row["merge_group"], entity_id)).fetchall():
+                con.execute(
+                    "update entity_same_as set status='reverted' "
+                    "where a=%s and status='active'", (r["a"],))
+                orig = con.execute(
+                    "select merge_group from entity_same_as "
+                    "where a=%s and b=%s and status='reverted' "
+                    "order by created_at desc limit 1",
+                    (r["a"], entity_id)).fetchone()
+                con.execute(
+                    "insert into entity_same_as (a, b, decided_by, note, "
+                    "merge_group) values (%s, %s, 'web', 'unmerge restore', %s)",
+                    (r["a"], entity_id,
+                     orig["merge_group"] if orig else None))
+                restored.append(r["a"])
+        # Heal supersessions the merge caused (design §2 rule 5, §15): a
+        # same-lineage auto-resolve whose two claims belong to DIFFERENT raw
+        # identities can only have grouped them through a merge — if either
+        # side's raw identity is being unmerged here, the supersession is
+        # merge damage: restore the losing claim and re-open the pair.
+        affected = [entity_id] + restored
+        for t in con.execute(
+                "select t.contradiction_id, t.claim_a, t.claim_b, t.resolution "
+                "from contradiction t "
+                "join claim ca on ca.claim_id = t.claim_a "
+                "join claim cb on cb.claim_id = t.claim_b "
+                "join mention ma on ma.event_id = ca.event_id "
+                "and ma.surface = ca.subject_surface "
+                "join mention mb on mb.event_id = cb.event_id "
+                "and mb.surface = cb.subject_surface "
+                "where t.status = 'auto_resolved' "
+                "and t.resolution->>'mode' = 'same_lineage' "
+                "and ma.resolved_entity is distinct from mb.resolved_entity "
+                "and (ma.resolved_entity = any(%s) "
+                "or mb.resolved_entity = any(%s))",
+                (affected, affected)).fetchall():
+            kept = (t["resolution"] or {}).get("kept")
+            loser = t["claim_b"] if str(t["claim_a"]) == kept else t["claim_a"]
+            con.execute(
+                "update claim set status='asserted', superseded_by=null "
+                "where claim_id=%s and status='superseded'", (loser,))
+            con.execute(
+                "update contradiction set status='open', resolved_at=null, "
+                "resolution = coalesce(resolution, '{}'::jsonb) || %s "
+                "where contradiction_id=%s",
+                (Jsonb({"reopened_by": "unmerge",
+                        "reopened_at": datetime.now(timezone.utc).isoformat()}),
+                 t["contradiction_id"]))
         con.commit()
         return {"ok": True}
 
@@ -608,12 +697,17 @@ def create_app():
             raise HTTPException(
                 400, "Review applies to promoted, triaged or parked hypotheses.")
         if body.verdict == "reject":
-            con.execute(
+            # state guard: the verdict was rendered against the state read
+            # above; if the worker moved the row meanwhile, apply nothing
+            # (no state flip, no label, no edge archive) and ask for a reload
+            cur = con.execute(
                 "update hypothesis set state='refuted', updated_at=now(), "
-                "history = history || %s where hypothesis_id=%s",
+                "history = history || %s where hypothesis_id=%s and state=%s",
                 (Jsonb([{"at": datetime.now(timezone.utc).isoformat(),
                          "from": state, "to": "refuted",
-                         "note": "rejected in review"}]), hypothesis_id))
+                         "note": "rejected in review"}]), hypothesis_id, state))
+            if cur.rowcount == 0:
+                raise HTTPException(409, "State changed; reload.")
             if state == "promoted":
                 # the promoted link loses its human backing; archive, not delete
                 con.execute(
@@ -789,6 +883,11 @@ def create_app():
         d = {"decision": body.decision, "cik": body.cik, "lei": body.lei,
              "entity_hint": body.name, "confidence": 1.0, "decided_by": "web"}
         decision, entity_id = adjudicate.apply_decision(con, row, d)
+        if decision == "already_decided":
+            # the worker's adjudicate pass claimed the row between our
+            # pending-check and the write; that verdict stands
+            raise HTTPException(
+                409, "Mention was decided concurrently; reload.")
         if decision != body.decision:
             # apply_decision degraded the match; nothing was written
             raise HTTPException(400, "Match needs a registry id from the candidates.")
@@ -833,6 +932,9 @@ def create_app():
                                   con=Depends(get_con)):
         if body.keep not in ("a", "b", "none"):
             raise HTTPException(400, "Keep must be a, b or none.")
+        # the initial read serves the 404 and the claim ids; every state
+        # transition below is guarded, so two concurrent resolves can never
+        # both apply (the loser of the race gets a 409)
         t = con.execute(
             "select * from contradiction where contradiction_id=%s",
             (contradiction_id,)).fetchone()
@@ -841,20 +943,57 @@ def create_app():
         if t["status"] != "open":
             raise HTTPException(409, "Already resolved.")
         if body.keep == "none":
-            con.execute(
+            cur = con.execute(
                 "update contradiction set status='dismissed', resolved_at=now() "
-                "where contradiction_id=%s", (contradiction_id,))
+                "where contradiction_id=%s and status='open'",
+                (contradiction_id,))
+            if cur.rowcount == 0:
+                con.rollback()
+                raise HTTPException(409, "Already resolved.")
         else:
             winner = t["claim_a"] if body.keep == "a" else t["claim_b"]
             loser = t["claim_b"] if body.keep == "a" else t["claim_a"]
-            # append-only: the loser is superseded, never deleted (design §2)
-            con.execute(
-                "update claim set status='superseded', superseded_by=%s "
-                "where claim_id=%s", (winner, loser))
-            con.execute(
+            statuses = {r["claim_id"]: r["status"] for r in con.execute(
+                "select claim_id, status from claim where claim_id = any(%s)",
+                ([t["claim_a"], t["claim_b"]],))}
+            if (statuses.get(winner) != "asserted"
+                    or statuses.get(loser) != "asserted"):
+                # stale: a side was already superseded elsewhere (another
+                # contradiction's resolution, an auto-resolve). Touching the
+                # claims now would rewrite an existing superseded_by pointer
+                # or endorse a dead winner — dismiss instead, recording why,
+                # and skip the review label (the verdict was not applied).
+                dead = winner if statuses.get(winner) != "asserted" else loser
+                cur = con.execute(
+                    "update contradiction set status='dismissed', "
+                    "resolution=%s, resolved_at=now() "
+                    "where contradiction_id=%s and status='open'",
+                    (Jsonb({"reason": "stale", "superseded_claim": str(dead)}),
+                     contradiction_id))
+                if cur.rowcount == 0:
+                    con.rollback()
+                    raise HTTPException(409, "Already resolved.")
+                con.commit()
+                return {"ok": True, "stale": True}
+            # claim the resolution FIRST (guarded), then supersede: a raced
+            # request 409s here instead of writing a second supersession
+            cur = con.execute(
                 "update contradiction set status='resolved', resolution=%s, "
-                "resolved_at=now() where contradiction_id=%s",
+                "resolved_at=now() where contradiction_id=%s and status='open'",
                 (Jsonb({"kept": str(winner)}), contradiction_id))
+            if cur.rowcount == 0:
+                con.rollback()
+                raise HTTPException(409, "Already resolved.")
+            # append-only: the loser is superseded, never deleted (design §2);
+            # the status guard keeps a concurrent supersession's audit pointer
+            # intact — if it fires, this resolution must not claim the write
+            cur = con.execute(
+                "update claim set status='superseded', superseded_by=%s "
+                "where claim_id=%s and status='asserted'", (winner, loser))
+            if cur.rowcount == 0:
+                con.rollback()
+                raise HTTPException(
+                    409, "Claim was superseded concurrently; reload.")
         con.execute(
             "insert into review_label (kind, target, verdict) values "
             "('contradiction', %s, %s)", (contradiction_id, body.keep))

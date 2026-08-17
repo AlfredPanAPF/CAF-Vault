@@ -236,9 +236,22 @@ def _api_complete(prompt, model, max_tokens):
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise EngineUnavailable("engine 'api' selected but ANTHROPIC_API_KEY is empty")
     client = anthropic.Anthropic()
-    msg = client.messages.create(
-        model=model, max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}])
+    # Quota/auth/overload conditions must pause the pipeline like the
+    # claude_code engine does (seat latch -> EngineUnavailable), never surface
+    # as per-item failures that burn attempts across the corpus.
+    try:
+        msg = client.messages.create(
+            model=model, max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}])
+    except anthropic.RateLimitError as e:
+        raise EngineUnavailable(f"api rate limited: {e}") from e
+    except anthropic.AuthenticationError as e:
+        raise EngineUnavailable(f"api auth failed: {e}") from e
+    except anthropic.APIStatusError as e:
+        if (getattr(e, "status_code", None) == 529
+                or "overloaded" in str(e).lower()):
+            raise EngineUnavailable(f"api overloaded: {e}") from e
+        raise
     return "".join(b.text for b in msg.content if b.type == "text")
 
 
@@ -273,12 +286,11 @@ def _extract_json(text: str):
     start = text.find("{")
     if start < 0:
         raise ValueError("no JSON object found")
-    depth = 0
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return json.loads(text[start:i + 1])
-    raise ValueError("unbalanced JSON object")
+    # raw_decode parses exactly one JSON value and ignores trailing text; it is
+    # string-aware, so braces inside string values (quoted filing text, code
+    # fragments) never truncate the object the way naive brace counting did.
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError as e:
+        raise ValueError(f"invalid JSON object: {e}") from e
+    return obj

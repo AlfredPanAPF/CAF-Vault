@@ -1,18 +1,28 @@
 import { NavLink, Outlet } from "react-router-dom"
-import { Building2, Gauge, Lightbulb, Quote, Rss } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { Bell, Building2, Gauge, Lightbulb, ListChecks, Quote, Rss } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
+import { apiFetch, type StatusResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/", label: "Dashboard", icon: Gauge, end: true },
   { to: "/claims", label: "Claims", icon: Quote },
+  { to: "/alerts", label: "Alerts", icon: Bell },
+  { to: "/review", label: "Review", icon: ListChecks },
   { to: "/entities", label: "Entities", icon: Building2 },
   { to: "/sources", label: "Sources", icon: Rss },
   { to: "/hypotheses", label: "Hypotheses", icon: Lightbulb },
 ]
 
-function NavItem({ to, label, icon: Icon, end }: (typeof nav)[number]) {
+function NavItem({
+  to,
+  label,
+  icon: Icon,
+  end,
+  badge,
+}: (typeof nav)[number] & { badge?: number }) {
   return (
     <NavLink
       to={to}
@@ -28,6 +38,11 @@ function NavItem({ to, label, icon: Icon, end }: (typeof nav)[number]) {
     >
       <Icon className="size-3.5 shrink-0" />
       {label}
+      {badge !== undefined && badge > 0 && (
+        <span className="ml-auto rounded-full bg-accent/15 px-1.5 font-mono text-[10px] leading-4 text-accent">
+          {badge}
+        </span>
+      )}
     </NavLink>
   )
 }
@@ -41,7 +56,22 @@ function Brand() {
   )
 }
 
+/** Unread alert count off the shared status query: same key as the dashboard
+ *  poll, so at most one request is in flight; select keeps re-renders cheap. */
+function useAlertsUnread(): number {
+  const { data } = useQuery({
+    queryKey: ["status"],
+    queryFn: () => apiFetch<StatusResponse>("/api/status"),
+    refetchInterval: 30_000,
+    select: (status) => status.counts.alerts_unread,
+  })
+  return data ?? 0
+}
+
 export function Shell() {
+  const unread = useAlertsUnread()
+  const badgeFor = (to: string) => (to === "/alerts" ? unread : undefined)
+
   return (
     <div className="flex min-h-screen flex-col bg-background md:flex-row">
       {/* Top bar on small screens */}
@@ -49,7 +79,7 @@ export function Shell() {
         <Brand />
         <nav className="ml-2 flex items-center gap-1">
           {nav.map((item) => (
-            <NavItem key={item.to} {...item} />
+            <NavItem key={item.to} {...item} badge={badgeFor(item.to)} />
           ))}
         </nav>
       </header>
@@ -60,7 +90,7 @@ export function Shell() {
           <Brand />
         </div>
         {nav.map((item) => (
-          <NavItem key={item.to} {...item} />
+          <NavItem key={item.to} {...item} badge={badgeFor(item.to)} />
         ))}
       </aside>
 

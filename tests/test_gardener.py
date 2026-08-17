@@ -14,6 +14,13 @@ from graph import db, llm
 from graph.pipeline import gardener, materialize
 
 
+def _clean_slate(con):
+    """Delete global-aggregate tables inside this test's transaction; the con
+    fixture rolls back, so committed rows from other files reappear afterward."""
+    for table in ("contradiction", "edge", "claim", "predicate_map"):
+        con.execute(f"delete from {table}")
+
+
 def _mk_event(con, source_name="gardener-feed", connector="rss"):
     source_id = db.get_or_create_source(con, source_name, connector)
     event_id = con.execute(
@@ -46,6 +53,7 @@ def _version_map(con, version):
 
 
 def test_gardener_trigger_mapping_and_versions(con, monkeypatch):
+    _clean_slate(con)
     event_id, lineage_id = _mk_event(con)
     calls = []
     responses = [
@@ -101,19 +109,27 @@ def test_gardener_trigger_mapping_and_versions(con, monkeypatch):
     assert out == {"triggered": False, "raws": 49, "unmapped": 19}
     assert len(calls) == 1
 
-    # the 20th unmapped raw triggers version 2 with the FULL vocabulary
+    # the 20th unmapped raw triggers version 2. Delta prompting: the model
+    # sees only the unmapped raws plus the existing canon list — but the
+    # write is still a FULL mapping version (append-only invariant)
     _mk_claim(con, event_id, lineage_id, "new_19")
     out = gardener.run(con)
     assert out["version"] == 2
     assert out["raws"] == 50
-    assert out["self_mapped"] == 50
+    assert out["self_mapped"] == 20            # only the new raws self-map
+    assert "new_19, 1" in calls[1]             # unmapped raws sent
+    assert "supplies, 2" not in calls[1]       # mapped raws not re-sent
+    assert "# Existing canonical predicates" in calls[1]
+    assert "\nsupplies\n" in calls[1]          # prior canons offered for reuse
     v2 = _version_map(con, 2)
     assert len(v2) == 50
-    assert v2["supplier_of"] == "supplier_of"  # v2 stands on its own
+    assert v2["supplier_of"] == "supplies"     # prior canon carried forward
+    assert v2["new_00"] == "new_00"            # new raws self-mapped
     assert len(_version_map(con, 1)) == 30     # append-only: v1 untouched
 
 
 def test_gardener_pauses_on_engine_outage(con, monkeypatch):
+    _clean_slate(con)
     event_id, lineage_id = _mk_event(con)
     for i in range(30):
         _mk_claim(con, event_id, lineage_id, f"pred_{i:02d}")
@@ -128,7 +144,36 @@ def test_gardener_pauses_on_engine_outage(con, monkeypatch):
                        ).fetchone()["n"] == 0
 
 
+def test_gardener_records_failure_without_crashing(con, monkeypatch):
+    """Malformed/truncated model output must return a failure record, not
+    crash the stage — the trigger simply re-fires next cycle."""
+    _clean_slate(con)
+    event_id, lineage_id = _mk_event(con)
+    for i in range(30):
+        _mk_claim(con, event_id, lineage_id, f"fail_{i:02d}")
+
+    def bad(prompt, model, **kw):
+        raise ValueError("no valid JSON after 2 attempts: truncated")
+
+    monkeypatch.setattr(llm, "complete_json", bad)
+    out = gardener.run(con)
+    assert out["triggered"] is True
+    assert "no valid JSON" in out["failed"]
+    assert con.execute("select count(*) n from predicate_map"
+                       ).fetchone()["n"] == 0
+
+    # a mapping that is not a dict takes the same failure path
+    monkeypatch.setattr(llm, "complete_json",
+                        lambda *a, **kw: {"mapping": ["not", "a", "dict"]})
+    out = gardener.run(con)
+    assert out["triggered"] is True
+    assert "no mapping object" in out["failed"]
+    assert con.execute("select count(*) n from predicate_map"
+                       ).fetchone()["n"] == 0
+
+
 def test_materialize_groups_by_canon(con):
+    _clean_slate(con)
     a = con.execute(
         "insert into entity (kind, canonical_name) values ('company', 'A Co') "
         "returning entity_id").fetchone()["entity_id"]

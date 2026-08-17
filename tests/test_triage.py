@@ -112,6 +112,19 @@ def test_rss_title_keywords(con):
                            (event_id,)).fetchone() is None
 
 
+def test_triage_drains_backlogs_beyond_batch_limit(con):
+    # a bulk backlog larger than one batch is fully scored in one run —
+    # extract only consumes triaged events, so none may trickle behind
+    ids = [_mk_event(con, "rss", {"feed": "drainblog",
+                                  "title": f"Note {i}",
+                                  "item_url": f"https://example.com/d{i}"},
+                     source_name="drain-feed") for i in range(5)]
+    out = triage.run(con, limit=2)
+    assert out["scored"] >= 5
+    for event_id in ids:
+        assert _triage(con, event_id) is not None
+
+
 def test_rerun_never_rescores(con):
     _watch(con, "NVDA")
     event_id = _mk_event(con, "edgar", {

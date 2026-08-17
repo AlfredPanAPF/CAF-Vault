@@ -149,7 +149,8 @@ The rest stay `generated` and are re-scored next cycle.
 
 For up to `hypothesize_per_cycle` hypotheses in `triaged` not yet refined
 (history has no `refined` entry): serialize the claim subgraph — the evidence
-claims plus up to 15 other asserted claims per subject (id, subject name,
+claims (capped at the 30 most recent) plus up to 15 other asserted claims per
+subject (id, subject name,
 predicate, object, evidence quote, source name, observed_at, confidence,
 lineage_id) — plus the explicit negative space line ("No recorded relationship
 between A and B."). Prompt: graph/prompts/hypothesis.md. Output JSON:
@@ -218,11 +219,13 @@ Code enforcement after the call — the verifier proposes, the code disposes:
 - surviving_evidence filtered against claim_asserted.
 - Independent lineages = distinct lineage_id among surviving evidence, with
   the §10.4 guard: lineages whose root event's source has reliability < 0.4
-  collectively count as ONE lineage.
+  OR no reliability score yet (unproven) collectively count as ONE lineage.
 - Promote requires verdict `promote` AND lineages >= LINEAGES_REQUIRED for
-  the type AND at least one lineage from a source with reliability >= 0.5
-  (null counts as 0.5). Otherwise verdict promote degrades to park with a
-  history note.
+  the type AND at least one lineage from a source explicitly scored at
+  reliability >= 0.5 — a never-scored source can never satisfy the
+  established gate (§10.4; sources earn a score via §5.2 once they carry
+  five claims). Otherwise verdict promote degrades to park with a history
+  note.
 
 Outcomes:
 - **promote**: state `promoted`. Upsert the inferred edge (src, dst = the two
@@ -258,7 +261,8 @@ specific link; when in doubt, park, don't promote.
 
 New worker stage `triage` right after the connectors: events with status
 `pending` and triage null get a heuristic score (never LLM, never pauses,
-works with no seat token):
+works with no seat token). Extraction consumes only triaged events and the
+stage drains its whole backlog each cycle, so no event can skip scoring:
 
 - edgar: score by 8-K item when meta->>'items' is present, else by form:
   2.01/1.01/5.01 → 0.9, 5.02/1.03/7.01 → 0.7, other 8-K 0.5, else 0.4.
@@ -361,11 +365,13 @@ bigint). Pure Python, no new dependencies.
 
 Worker stage `garden`, before materialize. Trigger: no predicate_map rows yet
 and >= 30 distinct raw predicates, or >= 20 distinct raw predicates absent
-from the current version. LLM (models["garden"], prompts/gardener.md): input
-all distinct (lower(predicate_raw), count) pairs; output
-{"mapping": {"canonical_snake_case": ["raw1", "raw2", ...]}}. Validation in
-code: every input raw must appear exactly once; canonicals snake_case; a raw
-absent from the output maps to itself. Write the FULL mapping as version
+from the current version. LLM (models["garden"], prompts/gardener.md): delta
+prompting — input the unmapped (lower(predicate_raw), count) pairs plus the
+existing canonical list, output {"mapping": {"canonical_snake_case":
+["raw1", ...]}}; max_tokens scales with input size so the output can never
+truncate mid-vocabulary. Validation in code: every input raw must appear
+exactly once; canonicals snake_case; a raw absent from the output maps to
+itself; prior mappings carry forward. Write the FULL mapping as version
 prev+1 (append-only, §5.3). Pauses on EngineUnavailable.
 
 Consumers resolve through the current version:

@@ -66,14 +66,30 @@ def _watchlist_entities(con) -> set:
         "on w.ticker = e.registry_refs->>'ticker' where w.active")}
 
 
+def _raw_subject(con, claim, cache):
+    """The claim's subject identity BEFORE merge mapping: link_claims bakes the
+    same_as canonical into claim.subject_entity, but the resolving mention
+    keeps the raw resolved_entity for audit. Claims without a resolving
+    mention were linked directly and keep their stored subject."""
+    key = claim["claim_id"]
+    if key not in cache:
+        row = con.execute(
+            "select resolved_entity from mention "
+            "where event_id=%s and surface=%s and resolved_entity is not null "
+            "limit 1", (claim["event_id"], claim["subject_surface"])).fetchone()
+        cache[key] = row["resolved_entity"] if row else claim["subject_entity"]
+    return cache[key]
+
+
 def contradictions(con) -> dict:
     """Detect conflicting asserted claims (§10.1). Same-lineage pairs
     auto-resolve (newer supersedes); cross-lineage pairs stay open, alerting
     when the subject is on the active watchlist."""
     pmap = predicate_canon_map(con)
     claims = con.execute(
-        "select claim_id, subject_entity, predicate_raw, object_entity, "
-        "object_literal, lineage_id, observed_at, valid_from, valid_to "
+        "select claim_id, subject_entity, subject_surface, predicate_raw, "
+        "object_entity, object_literal, lineage_id, event_id, observed_at, "
+        "valid_from, valid_to "
         "from claim where status='asserted' and subject_entity is not null"
     ).fetchall()
     groups = defaultdict(list)
@@ -84,6 +100,7 @@ def contradictions(con) -> dict:
     counts = {"object_conflict": 0, "literal_conflict": 0}
     auto_resolved = alerted = 0
     superseded = set()   # claims retired this run never enter a later pair
+    raw_subjects = {}    # claim_id -> pre-merge subject identity (memoized)
 
     for (subject, pcanon), group in sorted(
             groups.items(), key=lambda kv: (str(kv[0][0]), kv[0][1])):
@@ -120,13 +137,26 @@ def contradictions(con) -> dict:
                 if row is None:   # pair already recorded on an earlier run
                     continue
                 counts[kind] += 1
-                if a["lineage_id"] == b["lineage_id"]:
+                # same-lineage supersession only when the pair's identity is
+                # merge-independent: if the subjects coincide solely because an
+                # active merge re-pointed them, the pair must stay open for
+                # review (design §15 — a wrong merge would otherwise write an
+                # irreversible 'superseded' into the append-only log).
+                if (a["lineage_id"] == b["lineage_id"]
+                        and _raw_subject(con, a, raw_subjects)
+                        == _raw_subject(con, b, raw_subjects)):
                     older, newer = sorted(
                         (a, b), key=lambda c: (c["observed_at"], str(c["claim_id"])))
-                    con.execute(
+                    cur = con.execute(
                         "update claim set status='superseded', superseded_by=%s "
-                        "where claim_id=%s", (newer["claim_id"], older["claim_id"]))
+                        "where claim_id=%s and status='asserted'",
+                        (newer["claim_id"], older["claim_id"]))
+                    # no longer asserted either way — never enters a later pair
                     superseded.add(older["claim_id"])
+                    if cur.rowcount == 0:
+                        # a concurrent resolve retired it first; leave the new
+                        # pair open for human review, claim nothing
+                        continue
                     con.execute(
                         "update contradiction set status='auto_resolved', "
                         "resolution=%s, resolved_at=now() where contradiction_id=%s",

@@ -9,7 +9,11 @@ import json
 from psycopg.types.json import Jsonb
 
 from .. import config, llm
-from .funnel import append_history, subject_names
+from .funnel import append_history, record_failure, subject_names
+
+# most recent evidence claims serialized per hypothesis prompt — the stored
+# evidence array is corpus-proportional, the prompt must not be
+EVIDENCE_CAP = 30
 
 # Shared claim serialization: investigate.py reuses these so both agents see
 # one claim shape. Reads go through the claim_asserted firewall view only
@@ -46,8 +50,12 @@ def claim_line(r) -> str:
 def _subgraph(con, h, names) -> str:
     lines, seen = [], []
     if h["evidence"]:
-        for r in con.execute(CLAIM_SELECT + "where c.claim_id = any(%s) "
-                             "order by c.observed_at", (list(h["evidence"]),)):
+        # cap at the most recent EVIDENCE_CAP, presented oldest-first
+        rows = con.execute(
+            CLAIM_SELECT + "where c.claim_id = any(%s) "
+            "order by c.observed_at desc, c.claim_id limit %s",
+            (list(h["evidence"]), EVIDENCE_CAP)).fetchall()
+        for r in sorted(rows, key=lambda r: r["observed_at"]):
             seen.append(r["claim_id"])
             lines.append(claim_line(r))
     for subj in h["subjects"]:
@@ -74,35 +82,44 @@ def run(con) -> dict:
         "order by score desc nulls last, created_at limit %s",
         (config.DISCOVERY["hypothesize_per_cycle"],)).fetchall()
 
-    refined = refuted = 0
+    refined = refuted = failed = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
         names = subject_names(con, h["subjects"])
-        prompt = (prompt_base
-                  + "\n\n# Candidate\n"
-                  + f"type: {h['type']}\n"
-                  + f"subjects: {names[0]} and {names[1]}\n"
-                  + f"statement template: {json.dumps(h['statement'])}\n"
-                  + f"candidate rationale: {h['rationale']}\n"
-                  + "\n# Claim subgraph\n\n"
-                  + _subgraph(con, h, names) + "\n")
         con.execute("savepoint hyp_item")
         try:
+            prompt = (prompt_base
+                      + "\n\n# Candidate\n"
+                      + f"type: {h['type']}\n"
+                      + f"subjects: {names[0]} and {names[1]}\n"
+                      + f"statement template: {json.dumps(h['statement'])}\n"
+                      + f"candidate rationale: {h['rationale']}\n"
+                      + "\n# Claim subgraph\n\n"
+                      + _subgraph(con, h, names) + "\n")
             result = llm.complete_json(prompt, model)
         except llm.EngineUnavailable as e:
             con.execute("rollback to savepoint hyp_item")
             print(f"hypothesize: paused, no model available ({e})")
             paused = True
             break
+        except Exception as e:
+            # one bad item (malformed output, CLI timeout) must not roll back
+            # the whole stage or poison the queue head — extract.run pattern
+            con.execute("rollback to savepoint hyp_item")
+            record_failure(con, h, "hypothesize", e)
+            print(f"hypothesize: item {hid} failed ({e})")
+            failed += 1
+            continue
         plan = result.get("test_plan") or {}
         confirm = [str(x) for x in (plan.get("confirm") or []) if x]
         refute = [str(x) for x in (plan.get("refute") or []) if x]
         if not confirm or not refute:
             # §8.3: no falsifiable test plan -> discarded on the spot, kept
-            # as negative memory so dedup never regenerates it
+            # as negative memory so dedup never regenerates it (state guard:
+            # never flip a row something else moved while we held it)
             con.execute("update hypothesis set state = 'refuted' "
-                        "where hypothesis_id = %s", (hid,))
+                        "where hypothesis_id = %s and state = 'triaged'", (hid,))
             append_history(con, hid, {"from": "triaged", "to": "refuted",
                                       "note": "no falsifiable test plan"})
             refuted += 1
@@ -127,5 +144,6 @@ def run(con) -> dict:
             refined += 1
         con.execute("release savepoint hyp_item")
 
-    print(f"hypothesize: {refined} refined, {refuted} refuted")
-    return {"refined": refined, "refuted": refuted, "paused": paused}
+    print(f"hypothesize: {refined} refined, {refuted} refuted, {failed} failed")
+    return {"refined": refined, "refuted": refuted, "failed": failed,
+            "paused": paused}

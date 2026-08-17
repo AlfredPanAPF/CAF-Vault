@@ -1,8 +1,10 @@
 # Predicate gardening — v0
 
 You are consolidating the raw predicate vocabulary of a company knowledge graph.
-Below is every distinct raw predicate with its claim count. Group synonyms under
-one canonical predicate. Output is a single JSON object.
+Below is every raw predicate not yet in the canonical mapping, with its claim
+count, followed by the existing canonical predicates (when present). Group
+synonyms under one canonical predicate, reusing an existing canonical name when
+a raw predicate is a synonym of it. Output is a single JSON object.
 
 ## Output shape
 

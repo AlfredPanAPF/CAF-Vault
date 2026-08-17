@@ -12,11 +12,13 @@ from psycopg.types.json import Jsonb
 
 from .. import alerts, config, llm
 from ..pipeline.materialize import half_life_for
-from .funnel import append_history, parse_uuid, subject_names
+from .funnel import append_history, parse_uuid, record_failure, subject_names
 
-# lineage reliability = the lineage ROOT event's source reliability (null ->
-# 0.5); lineages below LOW collectively count as one, and promotion needs at
-# least one lineage at ESTABLISHED or better (§10.4)
+# lineage reliability = the lineage ROOT event's source reliability. Null is
+# UNPROVEN (§10.4), not a free 0.5: unproven and low-reliability lineages
+# collectively count as one, and promotion needs at least one lineage
+# explicitly scored at ESTABLISHED or better — never-scored sources can never
+# satisfy the established gate.
 LOW = 0.4
 ESTABLISHED = 0.5
 
@@ -71,7 +73,7 @@ def run(con) -> dict:
         "order by updated_at, created_at limit %s",
         (config.DISCOVERY["verify_per_cycle"],)).fetchall()
 
-    promoted = parked = refuted = 0
+    promoted = parked = refuted = failed = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
@@ -84,6 +86,14 @@ def run(con) -> dict:
             print(f"verify: paused, no model available ({e})")
             paused = True
             break
+        except Exception as e:
+            # one bad item (malformed output, CLI timeout) must not roll back
+            # the whole stage or poison the queue head — extract.run pattern
+            con.execute("rollback to savepoint ver_item")
+            record_failure(con, h, "verify", e)
+            print(f"verify: item {hid} failed ({e})")
+            failed += 1
+            continue
 
         # ---- code enforcement after the call (spec §3.4) ----
         surv_ids = []
@@ -99,8 +109,9 @@ def run(con) -> dict:
         rel_by_lineage = {}
         for r in surviving:
             rel = r["lineage_reliability"]
-            rel_by_lineage[r["lineage_id"]] = 0.5 if rel is None else float(rel)
-        low = [lin for lin, rel in rel_by_lineage.items() if rel < LOW]
+            rel_by_lineage[r["lineage_id"]] = None if rel is None else float(rel)
+        low = [lin for lin, rel in rel_by_lineage.items()
+               if rel is None or rel < LOW]
         independent = (len(rel_by_lineage) - len(low)) + (1 if low else 0)
         required = config.LINEAGES_REQUIRED.get(
             h["type"], config.LINEAGES_REQUIRED_DEFAULT)
@@ -117,7 +128,8 @@ def run(con) -> dict:
                 verdict = "park"
                 note = (f"promote degraded: {independent} independent "
                         f"lineage(s), {required} required")
-            elif not any(rel >= ESTABLISHED for rel in rel_by_lineage.values()):
+            elif not any(rel is not None and rel >= ESTABLISHED
+                         for rel in rel_by_lineage.values()):
                 verdict = "park"
                 note = "promote degraded: no lineage from an established source"
         elif raw_verdict not in ("park", "refute"):
@@ -145,7 +157,8 @@ def run(con) -> dict:
                  max(r["observed_at"] for r in surviving),
                  half_life_for(h["type"])))
             con.execute("update hypothesis set state = 'promoted', "
-                        "confidence = %s where hypothesis_id = %s", (conf, hid))
+                        "confidence = %s where hypothesis_id = %s "
+                        "and state = 'investigating'", (conf, hid))
             append_history(con, hid, {"from": "investigating",
                                       "to": "promoted", "verified": checked})
             alerts.emit(con, "promoted_link",
@@ -159,7 +172,8 @@ def run(con) -> dict:
                     + ([str(via)] if via else []))
             con.execute(
                 "update hypothesis set state = 'parked', parked_at = now(), "
-                "wake_conditions = %s where hypothesis_id = %s",
+                "wake_conditions = %s where hypothesis_id = %s "
+                "and state = 'investigating'",
                 (Jsonb({"entities": wake}), hid))
             entry = {"from": "investigating", "to": "parked",
                      "verified": checked}
@@ -169,12 +183,14 @@ def run(con) -> dict:
             parked += 1
         else:
             con.execute("update hypothesis set state = 'refuted' "
-                        "where hypothesis_id = %s", (hid,))
+                        "where hypothesis_id = %s "
+                        "and state = 'investigating'", (hid,))
             append_history(con, hid, {"from": "investigating",
                                       "to": "refuted", "verified": checked})
             refuted += 1
         con.execute("release savepoint ver_item")
 
-    print(f"verify: {promoted} promoted, {parked} parked, {refuted} refuted")
+    print(f"verify: {promoted} promoted, {parked} parked, {refuted} refuted, "
+          f"{failed} failed")
     return {"promoted": promoted, "parked": parked, "refuted": refuted,
-            "paused": paused}
+            "failed": failed, "paused": paused}

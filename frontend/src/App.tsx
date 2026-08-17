@@ -6,6 +6,8 @@ import { EntitiesPage } from "@/pages/entities";
 import { EntityPage } from "@/pages/entity";
 import { SourcesPage } from "@/pages/sources";
 import { HypothesesPage } from "@/pages/hypotheses";
+import { AlertsPage } from "@/pages/alerts";
+import { ReviewPage } from "@/pages/review";
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
       <Route element={<Shell />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/claims" element={<ClaimsPage />} />
+        <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/review" element={<ReviewPage />} />
         <Route path="/entities" element={<EntitiesPage />} />
         <Route path="/entity/:id" element={<EntityPage />} />
         <Route path="/sources" element={<SourcesPage />} />

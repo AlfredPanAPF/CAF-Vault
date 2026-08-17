@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   apiFetch,
   ApiError,
+  retryAllEvents,
   type FailedEvent,
   type Heartbeat,
   type Seat,
@@ -304,10 +305,28 @@ function FailedCard({ failed }: { failed: FailedEvent[] }) {
     onError: (err) => toast.error(errorDetail(err)),
   });
 
+  const retryAll = useMutation({
+    mutationFn: retryAllEvents,
+    onSuccess: (res) => {
+      toast.success(`Queued ${fmtNum(res.retried)} for another attempt.`);
+      void queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+    onError: (err) => toast.error(errorDetail(err)),
+  });
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Failed items</CardTitle>
+        {failed.length > 0 && (
+          <Button
+            size="sm"
+            disabled={retryAll.isPending}
+            onClick={() => retryAll.mutate()}
+          >
+            Retry all
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="p-0 pb-2">
         {failed.length === 0 ? (
@@ -417,7 +436,7 @@ export function DashboardPage() {
           value={links}
           sub={`${fmtNum(counts.edges.asserted)} asserted · ${fmtNum(counts.edges.inferred)} inferred`}
         />
-        <Counter label="Awaiting review" value={counts.er_queue.pending} />
+        <Counter label="Awaiting review" value={counts.er_queue.pending} to="/review" />
         <Counter label="Hypotheses" value={hypotheses} to="/hypotheses" />
       </div>
 

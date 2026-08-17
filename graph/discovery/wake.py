@@ -27,8 +27,14 @@ def run(con) -> dict:
         if hit is None:
             continue
         hid = h["hypothesis_id"]
-        con.execute("update hypothesis set state = 'triaged' "
-                    "where hypothesis_id = %s", (hid,))
+        # state guard: a row a human moved (e.g. rejected to 'refuted') while
+        # this batch was in flight must not wake — and on a skipped flip the
+        # whole per-item tail is skipped too: no history entry, no alert
+        cur = con.execute("update hypothesis set state = 'triaged' "
+                          "where hypothesis_id = %s and state = 'parked'",
+                          (hid,))
+        if cur.rowcount == 0:
+            continue
         append_history(con, hid, {"from": "parked", "to": "triaged",
                                   "note": "woke"})
         names = subject_names(con, h["subjects"])

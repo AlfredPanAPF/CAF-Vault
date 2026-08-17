@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 
 from graph import cli, config, db, llm, webapp
 from graph.connectors import edgar, manual, rss
-from graph.pipeline import extract, materialize, resolve
+from graph.pipeline import extract, materialize, resolve, triage
 
 # Canned extraction output, shaped per graph/prompts/extraction.md.
 EXTRACTION = {
@@ -52,6 +52,9 @@ def test_pipeline(con, tmp_path, monkeypatch):
     assert event_id is not None
     con.commit()
 
+    # extract only consumes triaged events (worker order: triage first)
+    assert extract.run(con, limit=10)["extracted"] == 0
+    triage.run(con)
     out = extract.run(con, limit=10)
     assert out["extracted"] == 1
     assert out["claims"] == 1
@@ -229,6 +232,21 @@ def _mk_claim(con, event_id, lineage_id, subject, predicate, obj,
         "returning claim_id",
         (subject, predicate, obj, Jsonb({"stance": stance}), event_id,
          lineage_id, quote)).fetchone()["claim_id"]
+
+
+def test_extract_json_ignores_braces_inside_strings():
+    # a brace inside a string value must not truncate the object (quoted
+    # filing text does this constantly), and trailing prose is ignored
+    assert llm._extract_json('noise {"a": "b } c", "n": 1} trailing'
+                             ) == {"a": "b } c", "n": 1}
+    assert llm._extract_json('{"reasoning": "quote says \'... }\' refutes"}'
+                             ) == {"reasoning": "quote says '... }' refutes"}
+    assert llm._extract_json('```json\n{"a": "{ x"}\n```') == {"a": "{ x"}
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        llm._extract_json("no object here")
+    with _pytest.raises(ValueError):
+        llm._extract_json('{"a": 1')   # genuinely truncated
 
 
 def test_health_and_unknown_api_path():

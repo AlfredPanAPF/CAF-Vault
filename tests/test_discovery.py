@@ -9,10 +9,22 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from psycopg.types.json import Jsonb
 
-from graph import db, llm
+from graph import config, db, llm
 from graph.discovery import (attribute_joins, funnel, hypothesize,
                              investigate, verify, wake)
 from graph.pipeline import materialize
+
+
+@pytest.fixture(autouse=True)
+def _clean_discovery_state(con):
+    """The suite shares one DB and earlier files commit hypotheses, inferred
+    edges and alerts; this file's stage runs and existence checks are
+    table-wide. Delete leaked discovery state INSIDE this test's transaction
+    (FK order: alert references hypothesis) — the con fixture rolls back, so
+    other files' committed rows reappear afterwards."""
+    con.execute("delete from alert")
+    con.execute("delete from edge where origin='inferred'")
+    con.execute("delete from hypothesis")
 
 
 def _mk_entity(con, name, ticker=None):
@@ -74,14 +86,21 @@ def _hyp(con, hid):
 
 
 def _mock_llm(monkeypatch, responses):
-    """Sequenced responses; returns the list of prompts sent."""
+    """Sequenced responses; returns the list of prompts sent. An Exception
+    instance in the sequence is raised instead of returned; a callable is
+    called with the prompt first (side-effect hook) and its return used."""
     remaining = list(responses)
     calls = []
 
     def fake(prompt, model, **kw):
         calls.append(prompt)
         assert remaining, "unexpected LLM call"
-        return remaining.pop(0)
+        r = remaining.pop(0)
+        if callable(r):
+            r = r(prompt)
+        if isinstance(r, Exception):
+            raise r
+        return r
 
     monkeypatch.setattr(llm, "complete_json", fake)
     return calls
@@ -107,6 +126,10 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
     doc.write_text("pad " * 300 + quote_a + " tail" * 300)
     ev_a, lin_a = _mk_event(con, "feed-a", artifact_uri=str(doc))
     ev_b, lin_b = _mk_event(con, "feed-b")
+    # established sources: never-scored (null) lineages collapse into one and
+    # cannot pass the §10.4 established gate, which is covered separately
+    con.execute("update source set reliability=0.6 "
+                "where name in ('feed-a', 'feed-b') and connector='rss'")
     claim_a = _mk_claim(con, ev_a, lin_a, a, "supplied_by", via, quote=quote_a)
     claim_b = _mk_claim(con, ev_b, lin_b, b, "supplied_by", via,
                         quote="Beta relies on Gamma for materials.")
@@ -135,7 +158,8 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
                       "refute": ["only generic sector commentary"]},
         "budget": {"tool_calls": 99},
     }])
-    assert hypothesize.run(con) == {"refined": 1, "refuted": 0, "paused": False}
+    assert hypothesize.run(con) == {"refined": 1, "refuted": 0, "failed": 0,
+                                    "paused": False}
     assert "No recorded relationship between" in calls[0]
     assert "Alpha Devices" in calls[0] and "Beta Systems" in calls[0]
     assert str(claim_a) in calls[0]            # evidence claims serialized
@@ -157,7 +181,8 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
          "evidence": [str(claim_a), str(claim_b), str(uuid.uuid4())],
          "confidence": 0.8, "reasoning": "both supply lines are asserted"},
     ])
-    assert investigate.run(con) == {"investigated": 1, "paused": False}
+    assert investigate.run(con) == {"investigated": 1, "failed": 0,
+                                    "paused": False}
     assert str(claim_a) in calls[1]            # claims_about result fed back
     assert " tail tail" in calls[2]            # segment context fed back
     assert "not a valid action" in calls[3]    # corrective reinjection
@@ -178,7 +203,7 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
         "reasoning": "two independent lineages name the same supplier",
     }])
     assert verify.run(con) == {"promoted": 1, "parked": 0, "refuted": 0,
-                               "paused": False}
+                               "failed": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "promoted"
     assert h["confidence"] == pytest.approx(0.72)
@@ -247,7 +272,7 @@ def test_single_lineage_parks_with_wake_conditions(con, monkeypatch):
     investigate.run(con)
     # one lineage < 2 required: the code gate degrades promote to park
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "paused": False}
+                               "failed": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "parked"
     assert h["parked_at"] is not None
@@ -306,7 +331,8 @@ def test_refuted_stays_refuted_and_not_regenerated(con, monkeypatch):
     # an empty confirm list is no falsifiable test plan: refuted on the spot
     _mock_llm(monkeypatch, [{"statement": "s",
                              "test_plan": {"confirm": [], "refute": ["y"]}}])
-    assert hypothesize.run(con) == {"refined": 0, "refuted": 1, "paused": False}
+    assert hypothesize.run(con) == {"refined": 0, "refuted": 1, "failed": 0,
+                                    "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "refuted"
     assert any(e.get("note") == "no falsifiable test plan"
@@ -339,7 +365,8 @@ def test_hypothesize_pause_leaves_state(con, monkeypatch):
     hid = _mk_hypothesis(con, [a, b], state="triaged")
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
-    assert hypothesize.run(con) == {"refined": 0, "refuted": 0, "paused": True}
+    assert hypothesize.run(con) == {"refined": 0, "refuted": 0, "failed": 0,
+                                    "paused": True}
     assert _hyp(con, hid) == before
 
 
@@ -351,7 +378,8 @@ def test_investigate_pause_leaves_state(con, monkeypatch):
                                    "refined": {"model": "m"}}])
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
-    assert investigate.run(con) == {"investigated": 0, "paused": True}
+    assert investigate.run(con) == {"investigated": 0, "failed": 0,
+                                    "paused": True}
     # the flip to 'investigating' rolled back with the savepoint
     assert _hyp(con, hid) == before
 
@@ -369,11 +397,274 @@ def test_verify_pause_leaves_state(con, monkeypatch):
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
     assert verify.run(con) == {"promoted": 0, "parked": 0, "refuted": 0,
-                               "paused": True}
+                               "failed": 0, "paused": True}
     assert _hyp(con, hid) == before
     assert con.execute("select 1 from edge where origin='inferred'"
                        ).fetchone() is None
     assert con.execute("select 1 from alert").fetchone() is None
+
+
+# ------------------------------------------------------------ verify gates
+
+REFINED = [{"at": "2026-08-17T00:00:00+00:00", "refined": {"model": "m"}}]
+INVESTIGATED = [{"at": "2026-08-17T00:00:00+00:00",
+                 "investigated": {"assessment": "supported", "turns": 1,
+                                  "reasoning": "r"}}]
+
+
+def _mk_verify_pair(con, monkeypatch, feed_a, feed_b, rel_a, rel_b):
+    """Two-lineage investigated hypothesis whose root sources carry the given
+    reliability scores (None = never scored), with a 'promote' verdict mocked
+    citing both claims."""
+    a = _mk_entity(con, f"{feed_a} Corp")
+    b = _mk_entity(con, f"{feed_b} Inc")
+    ev_a, lin_a = _mk_event(con, feed_a)
+    ev_b, lin_b = _mk_event(con, feed_b)
+    for feed, rel in ((feed_a, rel_a), (feed_b, rel_b)):
+        if rel is not None:
+            con.execute("update source set reliability=%s "
+                        "where name=%s and connector='rss'", (rel, feed))
+    c1 = _mk_claim(con, ev_a, lin_a, a, "supplied_by", b, quote="q1")
+    c2 = _mk_claim(con, ev_b, lin_b, b, "supplied_by", a, quote="q2")
+    hid = _mk_hypothesis(con, [a, b], state="investigating",
+                         evidence=[c1, c2], history=INVESTIGATED)
+    _mock_llm(monkeypatch, [{"verdict": "promote",
+                             "surviving_evidence": [str(c1), str(c2)],
+                             "confidence": 0.8, "reasoning": "r"}])
+    return hid
+
+
+def _assert_parked_with_note(con, hid, note):
+    h = _hyp(con, hid)
+    assert h["state"] == "parked"
+    notes = [e.get("note") for e in h["history"] if "verified" in e]
+    assert notes == [note]
+    assert con.execute("select 1 from edge where origin='inferred'"
+                       ).fetchone() is None
+    assert con.execute("select 1 from alert where kind='promoted_link'"
+                       ).fetchone() is None
+    return h
+
+
+def test_verify_low_reliability_lineages_collapse_to_one(con, monkeypatch):
+    # both lineages below LOW: they collectively count as ONE independent
+    # lineage, so the count gate (not the established gate) parks it
+    hid = _mk_verify_pair(con, monkeypatch, "vlow-a", "vlow-b", 0.3, 0.3)
+    assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
+                               "failed": 0, "paused": False}
+    h = _assert_parked_with_note(
+        con, hid, "promote degraded: 1 independent lineage(s), 2 required")
+    verified = [e["verified"] for e in h["history"] if "verified" in e]
+    assert verified[0]["lineages"] == 1
+
+
+def test_verify_no_established_lineage_parks(con, monkeypatch):
+    # both >= LOW but < ESTABLISHED: two independent lineages, none proven
+    hid = _mk_verify_pair(con, monkeypatch, "vmid-a", "vmid-b", 0.45, 0.45)
+    assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
+                               "failed": 0, "paused": False}
+    _assert_parked_with_note(
+        con, hid, "promote degraded: no lineage from an established source")
+
+
+def test_verify_unscored_lineages_count_as_one(con, monkeypatch):
+    # two never-scored sources (reliability null) must NOT pass as two
+    # established lineages (§10.4): unproven collapses into one
+    hid = _mk_verify_pair(con, monkeypatch, "vnull-a", "vnull-b", None, None)
+    assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
+                               "failed": 0, "paused": False}
+    _assert_parked_with_note(
+        con, hid, "promote degraded: 1 independent lineage(s), 2 required")
+
+
+def test_verify_unscored_plus_low_scored_parks(con, monkeypatch):
+    # null + 0.45: two independent lineages, but neither is explicitly
+    # ESTABLISHED — null can never satisfy the established gate
+    hid = _mk_verify_pair(con, monkeypatch, "vmix-a", "vmix-b", None, 0.45)
+    assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
+                               "failed": 0, "paused": False}
+    _assert_parked_with_note(
+        con, hid, "promote degraded: no lineage from an established source")
+
+
+def test_verify_unscored_plus_established_promotes(con, monkeypatch):
+    # one explicitly established lineage plus the unproven group (counts as
+    # one) = 2 independent lineages -> promote
+    hid = _mk_verify_pair(con, monkeypatch, "vest-a", "vest-b", None, 0.6)
+    assert verify.run(con) == {"promoted": 1, "parked": 0, "refuted": 0,
+                               "failed": 0, "paused": False}
+    assert _hyp(con, hid)["state"] == "promoted"
+    assert con.execute("select 1 from edge where origin='inferred'"
+                       ).fetchone() is not None
+
+
+# ------------------------------------------------------------ investigate budget
+
+
+def test_investigate_budget_exhaustion_defaults_insufficient(con, monkeypatch):
+    a = _mk_entity(con, "Budget Corp")
+    b = _mk_entity(con, "Budget Inc")
+    hid = _mk_hypothesis(con, [a, b], state="triaged", history=REFINED)
+    _mock_llm(monkeypatch,
+              [{"tool": "claims_about", "entity_id": str(a)}] * 8)
+    assert investigate.run(con) == {"investigated": 1, "failed": 0,
+                                    "paused": False}
+    h = _hyp(con, hid)
+    assert h["state"] == "investigating"
+    assert h["evidence"] == []
+    assert h["confidence"] is None
+    inv = [e for e in h["history"] if "investigated" in e]
+    assert inv and inv[0]["investigated"]["assessment"] == "insufficient"
+    assert inv[0]["investigated"]["turns"] == 8
+
+
+def test_investigate_char_cap_breaks_loop(con, monkeypatch):
+    a = _mk_entity(con, "Charcap Corp")
+    b = _mk_entity(con, "Charcap Inc")
+    hid = _mk_hypothesis(con, [a, b], state="triaged", history=REFINED)
+    monkeypatch.setitem(config.DISCOVERY, "budget_tokens", 0)
+    _mock_llm(monkeypatch, [{"tool": "claims_about", "entity_id": str(a)}])
+    assert investigate.run(con) == {"investigated": 1, "failed": 0,
+                                    "paused": False}
+    inv = [e for e in _hyp(con, hid)["history"] if "investigated" in e]
+    assert inv and inv[0]["investigated"]["assessment"] == "insufficient"
+    assert inv[0]["investigated"]["turns"] == 1
+
+
+# ------------------------------------------------------------ state guards
+
+
+def test_investigate_skips_row_moved_during_batch(con, monkeypatch):
+    a = _mk_entity(con, "Guard Corp")
+    b = _mk_entity(con, "Guard Inc")
+    h1 = _mk_hypothesis(con, [a, b], state="triaged", history=REFINED)
+    h2 = _mk_hypothesis(con, [b, a], state="triaged", history=REFINED)
+    con.execute("update hypothesis set score=0.9 where hypothesis_id=%s", (h1,))
+    con.execute("update hypothesis set score=0.8 where hypothesis_id=%s", (h2,))
+
+    def reject_h2_mid_batch(prompt):
+        # a human rejects h2 while the worker is busy investigating h1
+        con.execute("update hypothesis set state='refuted' "
+                    "where hypothesis_id=%s", (h2,))
+        return {"tool": "conclude", "assessment": "insufficient",
+                "evidence": [], "confidence": 0.5, "reasoning": "r"}
+
+    _mock_llm(monkeypatch, [reject_h2_mid_batch])
+    # h2's guarded flip matches nothing: no flip back, no LLM budget burned
+    # (the mock would fail loudly on a second call)
+    assert investigate.run(con) == {"investigated": 1, "failed": 0,
+                                    "paused": False}
+    assert _hyp(con, h1)["state"] == "investigating"
+    assert _hyp(con, h2)["state"] == "refuted"
+
+
+# ------------------------------------------------------------ item failure
+
+
+def test_investigate_item_failure_is_isolated_then_latches(con, monkeypatch):
+    a = _mk_entity(con, "Isolate Corp")
+    b = _mk_entity(con, "Isolate Inc")
+    good = _mk_hypothesis(con, [a, b], state="triaged", history=REFINED)
+    bad = _mk_hypothesis(con, [b, a], state="triaged", history=REFINED)
+    con.execute("update hypothesis set score=0.9 where hypothesis_id=%s",
+                (good,))
+    con.execute("update hypothesis set score=0.8 where hypothesis_id=%s",
+                (bad,))
+
+    # cycle 1: good concludes, bad's model output never parses
+    _mock_llm(monkeypatch, [
+        {"tool": "conclude", "assessment": "supported", "evidence": [],
+         "confidence": 0.6, "reasoning": "ok"},
+        ValueError("no valid JSON after 2 attempts"),
+    ])
+    assert investigate.run(con) == {"investigated": 1, "failed": 1,
+                                    "paused": False}
+    assert _hyp(con, good)["state"] == "investigating"   # work kept
+    bd = _hyp(con, bad)
+    assert bd["state"] == "triaged"                      # flip rolled back
+    errs = [e for e in bd["history"] if "error" in e]
+    assert len(errs) == 1
+    assert errs[0]["stage"] == "investigate"
+
+    # cycle 2: only bad is still selectable; the second failure parks it
+    _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
+    assert investigate.run(con) == {"investigated": 0, "failed": 1,
+                                    "paused": False}
+    bd = _hyp(con, bad)
+    assert bd["state"] == "parked"
+    assert sum(1 for e in bd["history"] if "error" in e) == 2
+
+    # cycle 3: the poison item is off the queue — no LLM call at all
+    def boom(*a_, **k_):
+        raise AssertionError("no LLM call expected")
+
+    monkeypatch.setattr(llm, "complete_json", boom)
+    assert investigate.run(con) == {"investigated": 0, "failed": 0,
+                                    "paused": False}
+    assert _hyp(con, bad)["state"] == "parked"
+
+
+def test_hypothesize_item_failure_records_error(con, monkeypatch):
+    a = _mk_entity(con, "Hypfail Corp")
+    b = _mk_entity(con, "Hypfail Inc")
+    hid = _mk_hypothesis(con, [a, b], state="triaged")
+    _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
+    assert hypothesize.run(con) == {"refined": 0, "refuted": 0, "failed": 1,
+                                    "paused": False}
+    h = _hyp(con, hid)
+    assert h["state"] == "triaged"
+    errs = [e for e in h["history"] if "error" in e]
+    assert len(errs) == 1
+    assert errs[0]["stage"] == "hypothesize"
+
+
+def test_verify_item_failure_records_error(con, monkeypatch):
+    a = _mk_entity(con, "Verfail Corp")
+    b = _mk_entity(con, "Verfail Inc")
+    ev, lin = _mk_event(con, "feed-verfail")
+    c = _mk_claim(con, ev, lin, a, "supplied_by", b, quote="q")
+    hid = _mk_hypothesis(con, [a, b], state="investigating", evidence=[c],
+                         history=INVESTIGATED)
+    _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
+    assert verify.run(con) == {"promoted": 0, "parked": 0, "refuted": 0,
+                               "failed": 1, "paused": False}
+    h = _hyp(con, hid)
+    assert h["state"] == "investigating"
+    errs = [e for e in h["history"] if "error" in e]
+    assert len(errs) == 1
+    assert errs[0]["stage"] == "verify"
+    assert con.execute("select 1 from edge where origin='inferred'"
+                       ).fetchone() is None
+
+
+# ------------------------------------------------------------ wake re-alert
+
+
+def test_wake_alerts_on_every_park_cycle(con):
+    a = _mk_entity(con, "Waketwice Corp")
+    b = _mk_entity(con, "Waketwice Inc")
+    hid = _mk_hypothesis(con, [a, b], state="parked")
+    con.execute("update hypothesis set parked_at = now() - interval '2 days', "
+                "wake_conditions = %s where hypothesis_id=%s",
+                (Jsonb({"entities": [str(a)]}), hid))
+    ev, lin = _mk_event(con, "feed-waketwice")
+    _mk_claim(con, ev, lin, a, "announces", object_surface="a recall")
+    assert wake.run(con) == {"woke": 1}
+
+    # verify parks it again; a later material claim wakes it a second time
+    con.execute("update hypothesis set state='parked', "
+                "parked_at = now() - interval '1 hour' "
+                "where hypothesis_id=%s", (hid,))
+    _mk_claim(con, ev, lin, a, "announces", object_surface="another recall")
+    assert wake.run(con) == {"woke": 1}
+
+    # every wake has its own alert row (schema 008), and both fall inside a
+    # fresh 24h digest window — the digest's woke list is exactly these rows
+    n = con.execute(
+        "select count(*) n from alert where kind='hypothesis_wake' "
+        "and hypothesis_id=%s and created_at >= now() - interval '24 hours'",
+        (hid,)).fetchone()["n"]
+    assert n == 2
 
 
 # ------------------------------------------------------------ fetch_segment
