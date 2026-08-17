@@ -39,9 +39,11 @@ def migrate_with_retry(window_s=60, pause_s=5):
             time.sleep(pause_s)
 
 
-def seed(con):
-    """Load registry_sec + alias_seed from the ref files, upsert the watchlist
-    and podcast source rows. No commit (CLI commits)."""
+def seed(con, sources=False):
+    """Load registry_sec + alias_seed from the ref files (reference data,
+    always). With sources=True, also upsert the demo watchlist and podcast
+    feeds from the spike — dev convenience only; production sources are added
+    through the admin page, never preloaded. No commit (CLI commits)."""
     data = json.loads(config.SEC_TICKERS.read_text())
     registrants = {}
     for v in data.values():
@@ -61,6 +63,10 @@ def seed(con):
             "insert into alias_seed (alias_norm, ticker) values (%s,%s) "
             "on conflict (alias_norm) do nothing", (er_norm.norm(k), v.upper()))
         seeded += cur.rowcount
+
+    out = {"registry_sec": len(registrants), "alias_seed": seeded}
+    if not sources:
+        return out
 
     # watchlist: upsert from the ref file; never touch an existing row's active flag
     watch = 0
@@ -84,13 +90,13 @@ def seed(con):
             con.execute(
                 "insert into source (name, connector, url, status, added_by) "
                 "values (%s,'podcast',%s,'active','seed')", (name, url))
-    return {"registry_sec": len(registrants), "alias_seed": seeded,
-            "watchlist": watch, "podcast_sources": len(podcast.FEEDS)}
+    out.update({"watchlist": watch, "podcast_sources": len(podcast.FEEDS)})
+    return out
 
 
 def cmd_seed(args):
     with db.connect() as con:
-        out = seed(con)
+        out = seed(con, sources=args.sources)
         con.commit()
         print(out)
 
@@ -323,10 +329,10 @@ def cmd_loop(args):
     cycles the sleep is a series of <=15s naps that watch for run_requested."""
     migrate_with_retry(window_s=120)
     with db.connect() as con:
-        empty = (con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0
-                 or con.execute("select count(*) n from watchlist").fetchone()["n"] == 0)
-        if empty:
-            print("loop: registry_sec/watchlist empty — seeding")
+        # Reference data only. Sources (watchlist, feeds) are never preloaded
+        # in production — they come in through the admin page.
+        if con.execute("select count(*) n from registry_sec").fetchone()["n"] == 0:
+            print("loop: registry_sec empty — seeding reference data")
             out = seed(con)
             con.commit()
             print(f"seed: {out}")
@@ -389,7 +395,10 @@ def main():
     sub = p.add_subparsers(dest="command", required=True)
 
     sub.add_parser("migrate", help="apply schema/*.sql").set_defaults(func=cmd_migrate)
-    sub.add_parser("seed", help="load registry_sec + alias_seed").set_defaults(func=cmd_seed)
+    p_seed = sub.add_parser("seed", help="load registry_sec + alias_seed")
+    p_seed.add_argument("--sources", action="store_true",
+                        help="also seed the demo watchlist + podcast feeds (dev only)")
+    p_seed.set_defaults(func=cmd_seed)
 
     s = sub.add_parser("ingest-edgar", help="poll EDGAR 8-Ks for the watchlist")
     s.add_argument("--tickers", nargs="*", default=None)

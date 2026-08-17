@@ -122,7 +122,7 @@ def test_pipeline(con, tmp_path, monkeypatch):
 
 
 def test_seed_watchlist_and_podcast_sources(con):
-    cli.seed(con)
+    cli.seed(con, sources=True)
     wl = json.loads(config.WATCHLIST.read_text())
     tickers = {t for ts in wl.values() for t in ts}
     rows = con.execute(
@@ -140,7 +140,7 @@ def test_seed_watchlist_and_podcast_sources(con):
     # re-seeding never overwrites an existing row's active flag
     paused = sorted(tickers)[0]
     con.execute("update watchlist set active=false where ticker=%s", (paused,))
-    cli.seed(con)
+    cli.seed(con, sources=True)
     assert con.execute("select active from watchlist where ticker=%s",
                        (paused,)).fetchone()["active"] is False
 
