@@ -81,47 +81,67 @@ the `claim_asserted` view, not in prompts).
   append-only with supersede/retract, reversible merges via `entity_same_as`,
   the asserted/inferred firewall view, versioned `predicate_map` (empty, for
   the gardener), ops tables.
-- 13 tests (`uv run pytest`), mocked-LLM end-to-end. Local dev: brew
-  postgres, `uv run graph migrate && uv run graph seed --sources`, `graph
-  run`, `graph serve`.
+- **Maturity phase (2026-08-17, build spec v3 — `docs/build-spec-v3-maturity.md`),
+  all five gate items built, adversarially reviewed, and verified end to end
+  against a live local server with a browser pass:**
+  1. *Discovery back half (§8):* funnel scoring (novelty × materiality ×
+     prior) → LLM hypothesis refinement (no falsifiable test plan → refuted)
+     → budgeted investigation tool loop reading only the `claim_asserted`
+     view with claim-ID grounding → adversarial verifier with code-enforced
+     gates (independent lineage count; unproven/low-reliability lineages
+     collectively count as one; promotion needs an explicitly scored
+     established source) → inferred edges with the verifier's trail →
+     park/wake with recurring wake alerts. Per-item failure isolation,
+     two-strike park, engine-outage pause everywhere.
+  2. *Alerts + fast path (§3, §11):* heuristic materiality triage gates
+     extraction (8-K items, title keywords; no LLM, never pauses), in-app
+     alerts (material events on watchlist, promoted links, wakes, watchlist
+     contradictions) with unread badge, morning digest endpoint + Alerts
+     page. In-app only — the owner dropped Telegram and every external
+     channel (2026-08-17).
+  3. *Gardener (§5.3):* threshold-triggered, delta-prompted, versioned full
+     mappings into `predicate_map`; materialize/contradictions/claims API
+     resolve through the current version.
+  4. *Quality layer (§10):* contradiction queue (object conflicts fall back
+     to normalized surfaces for unresolved persons; same-lineage auto-resolve
+     is merge-aware), source reliability scores, claim staleness at query
+     time (`confidence_now`), simhash near-dup mirrors at ingest.
+  5. *Review surfaces:* Review page (ER queue decide, contradiction resolve),
+     hypothesis detail with accept/reject, entity merge/unmerge
+     (whole-operation reversible via `merge_group`, schema 009), failed-event
+     retry-all. Every verdict lands in `review_label` (calibration data).
+- Unregistered companies dedup across documents (created-entity resolve tier
+  + get-or-create on `new_entity`) so attribute joins can see a shared
+  supplier — the design §8.8 case.
+- **Schema** (`schema/001-009`): the design's invariants live here — claims
+  append-only with supersede/retract, reversible merges via `entity_same_as`,
+  the asserted/inferred firewall view (007 refreshes it for the 003 columns),
+  versioned `predicate_map`, ops + alert + contradiction + review tables.
+- 73 tests (`uv run pytest`, one shared DB — new tests must scope assertions,
+  earlier files commit rows), mocked-LLM end-to-end including the full
+  discovery funnel. Local dev unchanged: brew postgres, `uv run graph migrate
+  && uv run graph seed --sources`, `graph run`, `graph serve`.
 
 ## What still needs building (recommended order)
 
-1. **Discovery back half — the moat (design §8).** Only candidate generation
-   exists. Build: hypothesis agent (typed, falsifiable output over serialized
-   claim subgraphs), investigation agent (hard budget, tools over the
-   `claim_asserted` view only, every evidence citation must be a claim ID
-   that resolves), adversarial verifier (source-lineage dedup; promotion
-   needs N independent lineages), promotion to inferred edges with the
-   verifier's trail attached, parked hypotheses with wake conditions. Without
-   this there are no inferred links and the second phase-1 gate (promoted-link
-   precision ≥0.7) cannot be measured.
-2. **Alerts + fast path (§3, §11).** Materiality triage at ingest, watchlist
-   alerts, morning digest. In-app surfaces only — the owner dropped Telegram
-   and every other external channel for now (2026-08-17).
-3. **Gardener (§5.3).** Cluster predicate embeddings, write versioned
-   canonical mappings into `predicate_map`, make queries resolve through it.
-4. **Quality layer (§10).** Contradiction detection queue, claim-confidence
-   staleness decay, source reliability scores fed back into confidence,
-   near-duplicate detection (only exact hash today).
-5. **Review surfaces.** ER queue browser (approve/correct adjudications,
-   merge/undo via `same_as`), hypothesis accept/reject buttons (these clicks
-   are the calibration labels), failed-event bulk retry.
-6. **Remaining design subsystems**: XBRL structured lane (§4.5), speaker
+1. **Remaining design subsystems**: XBRL structured lane (§4.5), speaker
    diarization + speakers-as-entities (§5.5), publisher corrections (§4.8),
    historical backfill mode (§4.10), source scouting (§4.7), as-of rendering
-   and a visual graph explorer (§11).
-7. **Eval harness.** Wire the spike's labeled sets into repeatable
+   and a visual graph explorer (§11), remaining candidate-generation signal
+   families (§8.1: similarity gaps, structural link prediction, temporal
+   co-movement — attribute joins ship today).
+2. **Eval harness.** Wire the spike's labeled sets into repeatable
    measurements (ER merge precision vs the ~0.99 gate; extraction precision);
-   iterate the extraction/adjudication prompts against them.
-8. **Ops nits.** Deploy route-smoke counts 404 as reachable (add a
-   vault-specific 200 assertion); check `scripts/backup-db.sh` covers
-   caf_vault; JWT integration is deliberately absent (mTLS-only, Market
-   precedent) unless the owner asks.
+   iterate the extraction/adjudication prompts against them. The
+   `review_label` table now accumulates live calibration labels.
+3. **JWT integration** is deliberately absent (mTLS-only, Market precedent)
+   unless the owner asks. Ops nits from the previous handover are done
+   (backup covers caf_vault; deploy smoke asserts 200 on /vault/).
 
-Items 1–5 are what "mature enough for the real run" means. When they are done
-and verified, hand back to the owner for the population run — with the seat
-token as their one manual step.
+The maturity bar is met: the app is ready for the owner's population run.
+Their one manual step remains the seat token (`claude setup-token` →
+`CLAUDE_CODE_OAUTH_TOKEN_VAULT_1` in the server's `~/CAF/.env`); until it is
+set, every LLM stage pauses cleanly and the heuristic stages keep running.
 
 ## Hard-won operational knowledge
 
