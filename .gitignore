@@ -22,3 +22,4 @@ spike/out/er/
 # GLEIF golden copy — large, refetchable via fetch_gleif.py
 spike/corpus/ref/gleif.sqlite
 spike/corpus/ref/gleif_lei2.csv.zip
+.playwright-mcp/
