@@ -45,6 +45,13 @@ class SeatError(RuntimeError):
     """This seat is dead (quota/auth); the call should rotate to the next."""
 
 
+class EngineUnavailable(RuntimeError):
+    """No live path to a model right now (all seats latched, or no API key).
+
+    Callers treat this as "pause and retry later", never as a per-item
+    failure — a quota window must not burn attempts across the corpus."""
+
+
 class _Seat:
     def __init__(self, index, token):
         self.index = index
@@ -219,13 +226,15 @@ def _cc_complete(prompt, model, max_tokens):
                 continue
         reasons = "; ".join(
             f"seat {s.index}: {s.kind or 'dead'}" for s in seats if s.dead)
-        raise RuntimeError(
+        raise EngineUnavailable(
             f"all {len(seats)} claude code seat(s) unavailable ({reasons})"
             + (f"; last: {last}" if last else ""))
 
 
 def _api_complete(prompt, model, max_tokens):
     import anthropic
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise EngineUnavailable("engine 'api' selected but ANTHROPIC_API_KEY is empty")
     client = anthropic.Anthropic()
     msg = client.messages.create(
         model=model, max_tokens=max_tokens,

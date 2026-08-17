@@ -240,6 +240,9 @@ def _extract_drain(con, batch=10):
         con.commit()
         for k in total:
             total[k] += out.get(k, 0)
+        if out.get("paused"):
+            total["paused"] = True
+            return total
         if out["extracted"] + out["failed"] == 0:
             return total
 

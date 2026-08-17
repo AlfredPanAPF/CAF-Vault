@@ -21,6 +21,7 @@ def run(con, limit=10):
         "where status='pending' order by fetched_at limit %s", (limit,)).fetchall()
 
     extracted = failed = n_claims = n_mentions = 0
+    paused = False
     for ev in events:
         con.execute("savepoint extract_ev")
         try:
@@ -44,6 +45,16 @@ def run(con, limit=10):
                         (ev["event_id"],))
             con.execute("release savepoint extract_ev")
             extracted += 1
+        except llm.EngineUnavailable as e:
+            # No live model path (seats latched / no key). Pause, don't punish:
+            # the event goes back to pending with its attempts untouched, and
+            # the rest of the batch waits for the next cycle.
+            con.execute("rollback to savepoint extract_ev")
+            con.execute("update event set status='pending' where event_id=%s",
+                        (ev["event_id"],))
+            print(f"extract: paused, no model available ({e})")
+            paused = True
+            break
         except Exception as e:
             con.execute("rollback to savepoint extract_ev")
             attempts = ev["attempts"] + 1
@@ -56,7 +67,7 @@ def run(con, limit=10):
 
     print(f"extract: {extracted} extracted, {failed} failed, "
           f"{n_mentions} mentions, {n_claims} claims")
-    return {"extracted": extracted, "failed": failed,
+    return {"extracted": extracted, "failed": failed, "paused": paused,
             "claims": n_claims, "mentions": n_mentions}
 
 
