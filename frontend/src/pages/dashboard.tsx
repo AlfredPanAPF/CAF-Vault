@@ -29,11 +29,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+/** Failed items carry a connector, not a source label. Source rows use the
+ *  API's own `label` (spec v4 §7), so this map is only for those. */
 const connectorLabels: Record<string, string> = {
   edgar: "EDGAR",
   podcast: "Podcast",
   rss: "News feed",
   manual: "Upload",
+  youtube: "YouTube",
+  x: "X",
+  bridge: "Bridge",
+  link: "Link",
 };
 
 function connectorLabel(connector: string): string {
@@ -269,10 +275,21 @@ function SourcesCard({ sources }: { sources: SourceRow[] }) {
                       {source.name}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {connectorLabel(source.connector)}
+                      {source.label}
                     </TableCell>
                     <TableCell>
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <span className="flex items-center gap-1.5">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        {source.last_error && (
+                          <Badge
+                            tone="warn"
+                            className="max-w-40 truncate"
+                            title={source.last_error}
+                          >
+                            {source.last_error}
+                          </Badge>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {source.last_polled ? timeAgo(source.last_polled) : "Never"}

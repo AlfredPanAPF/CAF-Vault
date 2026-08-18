@@ -36,6 +36,10 @@ FW_MODEL = os.environ.get("CAF_ASR_MODEL", "small")
 # CDNs (Acast et al.) 403 the default requests UA
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
+# ceiling for one episode download: about six hours of 128 kbps audio. The
+# worker has a 2 GB cap, so an enclosure with no Content-Length (or a lying
+# one) must not be buffered or written without a limit.
+MAX_AUDIO_BYTES = int(os.environ.get("CAF_PODCAST_MAX_BYTES") or 350_000_000)
 
 
 def asr_engine() -> str:
@@ -55,6 +59,28 @@ def episodes(rss_text: str):
             continue
         date = parsedate_to_datetime(pub.group(1)).date().isoformat() if pub else ""
         yield unescape(title.group(1).strip()), date, unescape(enc.group(1))
+
+
+def download(url: str, path: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Path:
+    """One episode to disk, streamed and capped. Buffering the whole response
+    in memory first is what a 2-core box cannot afford, and a feed that hands
+    back a multi-gigabyte file must stop the episode, not the worker."""
+    r = requests.get(url, timeout=180, headers=HEADERS, stream=True)
+    try:
+        r.raise_for_status()
+        written = 0
+        with path.open("wb") as fh:
+            for chunk in r.iter_content(262_144):
+                if not chunk:
+                    continue
+                written += len(chunk)
+                if written > max_bytes:
+                    raise RuntimeError(
+                        f"the episode is larger than {max_bytes // 1_000_000} MB")
+                fh.write(chunk)
+    finally:
+        r.close()
+    return path
 
 
 _fw_model = None  # loaded once per process; large-v3 int8 is ~1.5GB resident
@@ -116,9 +142,7 @@ def poll(con, feeds=None, episodes_per_feed=2):
                 with tempfile.TemporaryDirectory() as tmp:
                     mp3 = Path(tmp) / "episode.mp3"
                     print(f"downloading: {title}")
-                    audio = requests.get(enc_url, timeout=180, headers=HEADERS)
-                    audio.raise_for_status()
-                    mp3.write_bytes(audio.content)
+                    download(enc_url, mp3)
                     print(f"transcribing ({engine}): {title}")
                     text = transcribe(mp3, engine)
             except Exception as e:

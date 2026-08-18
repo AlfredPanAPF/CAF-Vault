@@ -6,11 +6,12 @@ import json
 import os
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, db, er_norm, llm
-from .connectors import edgar, manual, podcast, rss
+from . import config, credentials, db, er_norm, llm, router, watchlist
+from .connectors import bridge, edgar, links, manual, podcast, rss, x, youtube
 from .discovery import attribute_joins, funnel, hypothesize, investigate, verify, wake
 from .pipeline import (adjudicate, extract, gardener, materialize, quality,
                        resolve, triage)
@@ -73,9 +74,14 @@ def seed(con, sources=False):
     watch = 0
     for sector, tickers in json.loads(config.WATCHLIST.read_text()).items():
         for ticker in tickers:
+            # dev seeding is offline: sector comes from the ref file and the
+            # row is marked resolver='seed' (build spec v4 §2). A row a real
+            # resolve already touched keeps its provenance.
             con.execute(
-                "insert into watchlist (ticker, sector, added_by) values (%s,%s,'seed') "
-                "on conflict (ticker) do update set sector=excluded.sector",
+                "insert into watchlist (ticker, sector, added_by, resolver) "
+                "values (%s,%s,'seed','seed') on conflict (ticker) do update "
+                "set sector=excluded.sector, "
+                "resolver=coalesce(watchlist.resolver, 'seed')",
                 (ticker, sector))
             watch += 1
 
@@ -117,41 +123,74 @@ def cmd_ingest_podcasts(args):
         print(out)
 
 
-def cmd_add_feed(args):
-    """Same insert as POST /admin/feeds, for scripting."""
-    name = args.name
-    if args.kind == "podcast" and not name.startswith("podcast:"):
-        name = f"podcast:{name}"
+def cmd_add_source(args):
+    """Same path as POST /api/sources: the router decides what the URL is
+    (build spec v4 §4, §7)."""
     with db.connect() as con:
-        row = con.execute("select source_id from source where name=%s and connector=%s",
-                          (name, args.kind)).fetchone()
-        if row:
-            print({"exists": str(row["source_id"])})
+        res = router.resolve(con, args.url)
+        if res.kind == "unsupported":
+            print(f"error: {res.message}")
             return
+        existing = router.duplicate_of(con, res)
+        if existing:
+            print(f"error: already added as {existing}")
+            return
+        if res.one_off:
+            # a pasted article, post or video is fetched once, not polled
+            row = links.enqueue(con, res.url, res.link_kind, res.site, "cli")
+            if res.link_kind != "youtube_video":
+                row = links.process_one(con, row["link_id"])
+            con.commit()
+            print({"link_id": str(row["link_id"]), "kind": row["kind"],
+                   "status": row["status"], "error": row["error"]})
+            return
+        name = (args.name or "").strip() or res.name or res.url
+        if res.connector == "podcast" and not name.startswith("podcast:"):
+            name = f"podcast:{name}"
         row = con.execute(
-            "insert into source (name, connector, url, status, added_by) "
-            "values (%s,%s,%s,'active','cli') returning source_id",
-            (name, args.kind, args.url)).fetchone()
+            "insert into source (name, connector, url, config, status, added_by) "
+            "values (%s,%s,%s,%s,'active','cli') returning source_id",
+            (name, res.connector, res.feed_url or res.url,
+             Jsonb(res.config or {}))).fetchone()
         con.commit()
-        print({"source_id": str(row["source_id"]), "name": name})
+        print({"source_id": str(row["source_id"]), "name": name,
+               "connector": res.connector, "label": res.label})
 
 
 def cmd_add_ticker(args):
-    """Same insert as POST /admin/watchlist, for scripting."""
-    ticker = args.ticker.upper()
+    """Same path as POST /api/watchlist: Yahoo Finance first, SEC registry
+    second (build spec v4 §2)."""
     with db.connect() as con:
-        reg = con.execute("select title from registry_sec where ticker=%s",
-                          (ticker,)).fetchone()
-        if not reg:
-            print(f"error: {ticker} not in registry_sec (run `graph seed` first?)")
+        row = watchlist.resolve_and_upsert(con, args.ticker, "cli", args.sector)
+        if row is None:
+            ticker = watchlist.clean_ticker(args.ticker)
+            print(f"error: unknown ticker {ticker} — Yahoo Finance and the "
+                  f"SEC registry do not list it")
             return
-        con.execute(
-            "insert into watchlist (ticker, sector, added_by) values (%s,%s,'cli') "
-            "on conflict (ticker) do update set active=true, "
-            "sector=coalesce(excluded.sector, watchlist.sector)",
-            (ticker, args.sector))
         con.commit()
-        print({"ticker": ticker, "title": reg["title"]})
+        print({"ticker": row["ticker"], "name": row["name"],
+               "sector": row["sector"], "exchange": row["exchange"],
+               "resolver": row["resolver"]})
+
+
+def cmd_set_credential(args):
+    """Store a cookies.txt export or a bearer token for a premium site
+    (build spec v4 §3.1, §7)."""
+    if not args.file and args.value is None:
+        print("error: pass --file cookies.txt or --value TOKEN")
+        return
+    value = Path(args.file).read_text() if args.file else args.value
+    with db.connect() as con:
+        try:
+            credentials.set(con, args.site, value, args.note)
+        except credentials.InvalidCredential as e:
+            print(f"error: {e}")
+            return
+        requeued = links.requeue_blocked(con, args.site)
+        con.execute("update source set last_error=null, last_error_at=null "
+                    "where config->>'site' = %s", (args.site,))
+        con.commit()
+        print({"site": args.site, "set": True, "requeued": requeued})
 
 
 def cmd_ingest_file(args):
@@ -220,6 +259,10 @@ def cmd_run(args):
         stages = [
             ("edgar", lambda: edgar.poll(con)),
             ("rss", lambda: rss.poll(con)),
+            ("youtube", lambda: youtube.poll(con)),
+            ("x", lambda: x.poll(con)),
+            ("bridge", lambda: bridge.poll(con)),
+            ("links", lambda: links.process(con)),
             ("triage", lambda: triage.run(con)),
             ("extract", lambda: extract.run(con, limit=args.limit)),
             ("resolve", lambda: resolve.run(con)),
@@ -401,6 +444,10 @@ def cmd_loop(args):
         stage("podcast", lambda con: podcast.poll(
             con, episodes_per_feed=args.episodes))
         stage("rss", lambda con: rss.poll(con))
+        stage("youtube", lambda con: youtube.poll(con))
+        stage("x", lambda con: x.poll(con))
+        stage("bridge", lambda con: bridge.poll(con))
+        stage("links", lambda con: links.process(con))
         stage("triage", lambda con: triage.run(con))
         stage("extract", _extract_drain)
         stage("resolve", lambda con: resolve.run(con))
@@ -451,16 +498,26 @@ def main():
     s.add_argument("path")
     s.set_defaults(func=cmd_ingest_file)
 
-    s = sub.add_parser("add-feed", help="register a feed source row")
-    s.add_argument("name")
+    s = sub.add_parser("add-source", help="add a source (or a one-off link) "
+                       "from a pasted URL")
     s.add_argument("url")
-    s.add_argument("--kind", choices=["podcast", "rss"], required=True)
-    s.set_defaults(func=cmd_add_feed)
+    s.add_argument("--name", default=None, help="override the suggested name")
+    s.set_defaults(func=cmd_add_source)
 
     s = sub.add_parser("add-ticker", help="add a ticker to the watchlist")
     s.add_argument("ticker")
     s.add_argument("--sector", default=None)
     s.set_defaults(func=cmd_add_ticker)
+
+    s = sub.add_parser("set-credential", help="store a sign-in for a premium site")
+    s.add_argument("site", choices=sorted(credentials.SITES))
+    s.add_argument("--file", default=None, help="path to a cookies.txt export")
+    s.add_argument("--value", default=None, help="the token or cookie text")
+    s.add_argument("--note", default=None)
+    s.set_defaults(func=cmd_set_credential)
+
+    sub.add_parser("links", help="process the one-off link queue once"
+                   ).set_defaults(func=_cmd_simple(links.process))
 
     s = sub.add_parser("extract", help="extract claims from pending events")
     s.add_argument("--limit", type=int, default=10)

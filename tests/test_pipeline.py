@@ -376,19 +376,47 @@ def test_api_claims_filters(con):
                       params={"source_type": "carrier-pigeon"}).status_code == 400
 
 
-def test_api_watchlist_post(con):
-    client = TestClient(webapp.app)
-    r = client.post("/api/watchlist", json={"ticker": "nvda", "sector": "semis"})
-    assert r.status_code == 200
-    assert r.json() == {"ok": True, "ticker": "NVDA", "company": "NVIDIA CORP"}
-    row = con.execute("select * from watchlist where ticker='NVDA'").fetchone()
-    assert row is not None
-    assert row["active"] and row["added_by"] == "web"
+def test_api_watchlist_post(con, monkeypatch):
+    """POST /api/watchlist resolves through graph.watchlist (build spec v4 §2);
+    Yahoo is monkeypatched, so this stores the resolved columns offline."""
+    from graph import watchlist
 
-    # unknown tickers are rejected with a 400, not inserted
+    client = TestClient(webapp.app)
+    resolved = {"ticker": "NVDA", "name": "NVIDIA Corporation",
+                "sector": "Technology", "industry": "Semiconductors",
+                "exchange": "NasdaqGS", "country": "United States",
+                "currency": "USD", "quote_type": "EQUITY",
+                "website": "https://www.nvidia.com", "resolver": "yfinance",
+                "cik": 1045810}
+    monkeypatch.setattr(watchlist, "resolve",
+                        lambda c, t: dict(resolved) if t == "NVDA" else None)
+
+    r = client.post("/api/watchlist", json={"ticker": " nvda "})
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "ticker": "NVDA",
+                        "name": "NVIDIA Corporation", "sector": "Technology",
+                        "exchange": "NasdaqGS"}
+    row = con.execute("select * from watchlist where ticker='NVDA'").fetchone()
+    assert row["active"] and row["added_by"] == "web"
+    assert row["name"] == "NVIDIA Corporation"
+    assert row["industry"] == "Semiconductors"
+    assert row["exchange"] == "NasdaqGS"
+    assert row["country"] == "United States"
+    assert row["currency"] == "USD"
+    assert row["quote_type"] == "EQUITY"
+    assert row["cik"] == 1045810
+    assert row["resolver"] == "yfinance"
+    assert row["resolved_at"] is not None
+
+    # an explicit sector wins over the resolved one
+    r = client.post("/api/watchlist", json={"ticker": "NVDA", "sector": "semis"})
+    assert r.json()["sector"] == "semis"
+
+    # a ticker neither Yahoo nor the SEC lists is a 400, and nothing is written
     r = client.post("/api/watchlist", json={"ticker": "ZZZZ9"})
     assert r.status_code == 400
-    assert "Unknown ticker" in r.json()["detail"]
+    assert r.json()["detail"] == ("Unknown ticker ZZZZ9. Yahoo Finance and the "
+                                 "SEC registry do not list it.")
     assert con.execute("select 1 from watchlist where ticker='ZZZZ9'"
                        ).fetchone() is None
 
@@ -398,38 +426,6 @@ def test_api_watchlist_post(con):
     r = client.post("/api/watchlist/NVDA/toggle")
     assert r.json() == {"ok": True, "active": True}
     assert client.post("/api/watchlist/ZZZZ9/toggle").status_code == 404
-
-
-def test_api_feeds_post(con):
-    client = TestClient(webapp.app)
-    r = client.post("/api/feeds", json={
-        "name": "chipsblog2", "url": "https://chips2.example.com/rss",
-        "kind": "rss"})
-    assert r.status_code == 200
-    body = r.json()
-    assert body["ok"] is True
-    row = con.execute("select * from source where source_id=%s",
-                      (body["source_id"],)).fetchone()
-    assert row["name"] == "chipsblog2"
-    assert row["status"] == "active"
-    assert row["added_by"] == "web"
-
-    # duplicate name+kind -> 409
-    r = client.post("/api/feeds", json={
-        "name": "chipsblog2", "url": "https://chips2.example.com/rss",
-        "kind": "rss"})
-    assert r.status_code == 409
-
-    # podcast names get the podcast: prefix; bad kinds are rejected
-    r = client.post("/api/feeds", json={
-        "name": "chipcast", "url": "https://chips2.example.com/pod.xml",
-        "kind": "podcast"})
-    assert r.status_code == 200
-    assert con.execute("select 1 from source where name='podcast:chipcast' "
-                       "and connector='podcast'").fetchone() is not None
-    assert client.post("/api/feeds", json={
-        "name": "x", "url": "https://x.example.com", "kind": "atom"
-    }).status_code == 400
 
 
 def test_api_upload(con):

@@ -98,8 +98,11 @@ export interface SourceRow {
   source_id: string;
   name: string;
   connector: string;
+  /** User-facing type from the API's source_label helper (spec v4 §7). */
+  label: string;
   status: string;
   last_polled: string | null;
+  last_error: string | null;
   events: number;
 }
 
@@ -444,27 +447,156 @@ export function retryAllEvents(): Promise<{ ok: boolean; retried: number }> {
 
 // ─── /api/sources ────────────────────────────────────────────
 
+/** Watchlist row (spec v4 §7). Company facts are resolved from Yahoo
+ *  Finance or the SEC registry when the ticker is added. */
 export interface WatchlistRow {
   ticker: string;
+  name: string | null;
   sector: string | null;
+  industry: string | null;
+  exchange: string | null;
+  country: string | null;
   active: boolean;
-  company: string | null;
   events: number;
+  cik: number | null;
 }
 
-export interface FeedRow {
+/** Which premium site a source or link needs, and whether it is signed in. */
+export interface CredentialRef {
+  site: string;
+  set: boolean;
+}
+
+/** A polled source (spec v4 §7). `label` is the user-facing type. */
+export interface SourceItem {
   source_id: string;
   name: string;
   connector: string;
+  label: string;
+  site: string | null;
   url: string;
+  feed_url: string | null;
   status: string;
   last_polled: string | null;
+  last_error: string | null;
   events: number;
+  credential: CredentialRef | null;
+}
+
+/** A one-off link pasted into the sources page (spec v4 §6.3). */
+export interface LinkRow {
+  link_id: string;
+  url: string;
+  title: string | null;
+  kind: string;
+  site: string | null;
+  status: string;
+  error: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
+/** Sign-in state for one premium site. The stored value never leaves the API. */
+export interface CredentialRow {
+  site: string;
+  label: string;
+  kind: string;
+  set: boolean;
+  updated_at: string | null;
+  checked_at: string | null;
+  check_ok: boolean | null;
+  check_message: string | null;
+  help: string;
 }
 
 export interface SourcesResponse {
   watchlist: WatchlistRow[];
-  feeds: FeedRow[];
+  sources: SourceItem[];
+  links: LinkRow[];
+  credentials: CredentialRow[];
+}
+
+// ─── /api/watchlist ──────────────────────────────────────────
+
+export interface TickerSuggestion {
+  symbol: string;
+  name: string | null;
+  exchange: string | null;
+  type: string | null;
+}
+
+export function searchTickers(q: string): Promise<TickerSuggestion[]> {
+  return apiFetch(`/api/watchlist/search?q=${encodeURIComponent(q)}`);
+}
+
+// ─── /api/sources/resolve ────────────────────────────────────
+
+/** What the URL router made of a pasted link (spec v4 §4). */
+export interface Resolution {
+  kind: string;
+  connector: string | null;
+  label: string;
+  url: string;
+  name: string | null;
+  feed_url: string | null;
+  site: string | null;
+  config: Record<string, unknown>;
+  one_off: boolean;
+  link_kind: string | null;
+  credential: CredentialRef | null;
+  message: string | null;
+}
+
+export interface AddSourceResponse {
+  ok: boolean;
+  kind: "source" | "link";
+  source?: SourceItem;
+  link?: LinkRow;
+}
+
+export function resolveSource(url: string): Promise<Resolution> {
+  return apiFetch("/api/sources/resolve", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
+
+export function addSource(url: string, name?: string): Promise<AddSourceResponse> {
+  return apiFetch("/api/sources", {
+    method: "POST",
+    body: JSON.stringify({ url, name }),
+  });
+}
+
+export function removeSource(sourceId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/sources/${sourceId}`, { method: "DELETE" });
+}
+
+// ─── /api/links ──────────────────────────────────────────────
+
+export function retryLink(linkId: string): Promise<LinkRow> {
+  return apiFetch(`/api/links/${linkId}/retry`, { method: "POST" });
+}
+
+// ─── /api/credentials ────────────────────────────────────────
+
+export function saveCredential(
+  site: string,
+  value: string,
+  note?: string,
+): Promise<{ ok: boolean; site: string; set: boolean }> {
+  return apiFetch(`/api/credentials/${site}`, {
+    method: "PUT",
+    body: JSON.stringify({ value, note }),
+  });
+}
+
+export function deleteCredential(site: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/credentials/${site}`, { method: "DELETE" });
+}
+
+export function testCredential(site: string): Promise<{ ok: boolean; message: string }> {
+  return apiFetch(`/api/credentials/${site}/test`, { method: "POST" });
 }
 
 // ─── /api/upload ─────────────────────────────────────────────

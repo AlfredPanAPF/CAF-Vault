@@ -37,6 +37,12 @@ COPY spike/corpus/ref/watchlist.json \
 
 RUN pip install --no-cache-dir -e ".[asr]"
 
+# yt-dlp needs a JavaScript runtime for YouTube's player challenges (build
+# spec v4 §6.1). The node binary from the build stage is the whole runtime:
+# it is statically linked against everything but libstdc++/libgcc, which
+# python:3.12-slim already ships, so no apt install and no node_modules.
+COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
+
 COPY --from=frontend /build/dist/ ./frontend/dist/
 
 EXPOSE 8600

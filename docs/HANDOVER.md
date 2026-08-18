@@ -117,10 +117,85 @@ the `claim_asserted` view, not in prompts).
   append-only with supersede/retract, reversible merges via `entity_same_as`,
   the asserted/inferred firewall view (007 refreshes it for the 003 columns),
   versioned `predicate_map`, ops + alert + contradiction + review tables.
-- 73 tests (`uv run pytest`, one shared DB — new tests must scope assertions,
+- 199 tests after v4 (`uv run pytest`, one shared DB — new tests must scope assertions,
   earlier files commit rows), mocked-LLM end-to-end including the full
   discovery funnel. Local dev unchanged: brew postgres, `uv run graph migrate
   && uv run graph seed --sources`, `graph run`, `graph serve`.
+
+- **Sources overhaul (2026-08-18, build spec v4 —
+  `docs/build-spec-v4-sources.md`; rss-bridge research brief in
+  `docs/rss-bridge-brief.md`):**
+  1. *Watchlist by ticker alone* (`graph/watchlist.py`): name, sector,
+     industry, exchange, country, currency from yfinance (10 s budget in a
+     worker thread), SEC registry fallback, `cik` join; non-US symbols
+     accepted, EDGAR still polls SEC registrants only.
+     `GET /api/watchlist/search?q=` gives name suggestions.
+  2. *One URL box* (`graph/router.py`, 25 ordered rules): YouTube (channel,
+     @handle, playlist, video), X (account, post), FT (`?format=rss` section
+     feeds, `/content/<uuid>` articles), WSJ (live host
+     `feeds.content.dowjones.io/public/rss/<SLUG>`; the widely cited
+     `feeds.a.dj.com` feeds froze in Jan 2025 and are remapped), Apple
+     Podcasts, Bluesky, Telegram/Reddit/Mastodon/Threads via the bridge,
+     GitHub, Medium, Substack incl. custom domains (`x-cluster: substack`
+     header, generator tag, archive API), raw RSS/Atom, podcast sniff, HTML
+     autodiscovery, article pages, well-known feed paths, then rss-bridge
+     `findfeed`. `POST /api/sources/resolve` previews, `POST /api/sources`
+     creates. One-off links (article, Substack post, video, X post) land in
+     `link_queue`: processed synchronously when cheap, by the worker `links`
+     stage otherwise; retry, blocked, duplicate states shown on the page.
+  3. *Premium sources* (`graph/credentials.py`, `graph/fetch.py`,
+     `graph/probes.py`): cookies.txt or bearer per site (ft, wsj, substack,
+     x, youtube) pasted on the Sign-ins card, `curl_cffi` Chrome
+     impersonation, per-site wall detection raising `SignInNeeded` → source
+     row / link shows "Sign-in needed" (or, for FT/WSJ once a cookie is
+     saved and the edge still walls the fetch, "Headlines only, article
+     pages are blocked"; those feeds ingest headline + teaser as thin
+     events); a Test button runs a live probe (FT: `session-next.ft.com`
+     liveness first, so a live cookie behind the wall is reported as such).
+     Values never leave the API. Substack sends `substack.sid` to the
+     publication host (custom domains too), the rss-bridge SubstackBridge
+     trick, and accepts a bare sid paste.
+  4. *New connectors:* `youtube.py` (native channel feed → yt-dlp captions
+     json3 → whisper fallback only when ASR is on; cookies required from a
+     server IP, from a spare Google account), `x.py` (X API v2 bearer,
+     per-cycle account digest event, `since_id`, 429/402/401 handling),
+     `links.py`, `connectors/bridge.py` (rss-bridge JSON Feed). rss.py parses
+     Atom + `content:encoded`, fetches with the site credential, flags feeds
+     that answer 200 with nothing new for 45 days. Worker cycle: edgar →
+     podcast → rss → youtube → x → bridge → links → triage → …
+  5. *Private rss-bridge* (`caf-rss-bridge` in the CAF compose,
+     `rssbridge/rss-bridge:2025-08-05`, no port, no nginx route, env-only
+     config, allowlist of 15 bridges, optional `CAF_BRIDGE_TOKEN`; Vault
+     reads `CAF_BRIDGE_URL`). Verified locally: health, whitelist (400 for
+     TwitterBridge), token gating, findfeed/display shapes.
+  6. *Frontend:* `pages/sources.tsx` rewritten (Watchlist, Sources, Links,
+     Sign-ins, Upload). Image: `yfinance`, `yt-dlp`, `yt-dlp-ejs`,
+     `curl_cffi`; node copied from the frontend stage as yt-dlp's JS runtime.
+     Schema 010. Tests: 199 (`uv run pytest`).
+
+  What the research settled (details and citations in the brief):
+  rss-bridge's `findfeed`/`detect` cannot classify Substack, YouTube, X,
+  FT or WSJ URLs (no `detectParameters`), so our router owns detection and
+  asks the bridge last; `TwitterBridge`/Nitter are dead and `TwitterV2Bridge`
+  needs the same paid X token our `x.py` uses directly (X bills per read,
+  about $0.005 per post, deduplicated per UTC day); no FT or WSJ bridge
+  exists — one would be an `EconomistBridge`-pattern custom bridge with the
+  cookie in `RSSBRIDGE_<Bridge>_cookie`, which buys nothing over our fetcher.
+  **FT (Cloudflare JS challenge) and WSJ (DataDome) reject non-browser
+  clients at the edge before cookies are read**, verified from two networks:
+  their section feeds work (headline + teaser), the credential path
+  degrades honestly, and full text from the server needs the FT Content API
+  (Datamining licence) or Dow Jones Factiva, a browser-based fetcher on a
+  non-datacenter egress, or (WSJ) transcribing the public full-article
+  narration MP3s the Dow Jones GraphQL gateway lists — all recorded as
+  follow-ups in spec §11, none built.
+
+  Owner steps: paste the Substack sid, YouTube cookies (spare account) and
+  the X bearer on `/vault/sources` → Sign-ins and press Test; FT/WSJ cookies
+  are optional (Test explains the wall). Optional `CAF_BRIDGE_TOKEN` in the
+  server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
+  bridge image is pulled by `compose up`; its health check is part of the
+  gate).
 
 ## What still needs building (recommended order)
 

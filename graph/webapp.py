@@ -1,5 +1,6 @@
 """JSON API + SPA serving (build spec v2 §3; alerts, digest and the review
-surfaces per build spec v3 §4.3 and §7.1).
+surfaces per build spec v3 §4.3 and §7.1; the sources page — watchlist, one
+URL box, one-off links and sign-ins — per build spec v4 §7).
 
 All data endpoints live under /api and return JSON; the built React bundle at
 REPO/frontend/dist is served for everything else (catch-all -> index.html,
@@ -14,6 +15,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
@@ -22,8 +24,9 @@ from psycopg import errors as pg_errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import artifacts, config, db, staleness
-from .connectors import manual
+from . import (artifacts, config, credentials, db, fetch, probes, router,
+               staleness, watchlist)
+from .connectors import links, manual
 from .pipeline import adjudicate, resolve
 
 # ---------------------------------------------------------------- helpers
@@ -234,27 +237,109 @@ join source s on s.source_id = ev.source_id
 """
 
 WATCHLIST_SQL = """
-select w.ticker, w.sector, w.active, r.title as company,
+select w.ticker, coalesce(w.name, r.title) as name, w.sector, w.industry,
+       w.exchange, w.country, w.active, coalesce(w.cik, r.cik) as cik,
        (select count(*) from event e where e.meta->>'ticker' = w.ticker) as events
 from watchlist w
 left join registry_sec r on r.ticker = w.ticker
 order by w.ticker
 """
 
-FEEDS_SQL = """
-select s.source_id, s.name, s.connector, s.url, s.status, s.last_polled,
+SOURCE_COLUMNS = """
+select s.source_id, s.name, s.connector, s.url, s.config, s.status,
+       s.last_polled, s.last_error,
        (select count(*) from event e where e.source_id = s.source_id) as events
 from source s
-where s.connector in ('podcast', 'rss')
+"""
+
+# the sources card: no dropped rows, no internal buckets (build spec v4 §7)
+SOURCES_SQL = SOURCE_COLUMNS + """
+where s.status <> 'dropped' and not s.is_internal
+  and s.name not like 'link:%' and s.name not like 'edgar:%'
+  and s.name <> 'manual:uploads'
+order by s.name
+"""
+
+SOURCE_ROW_SQL = SOURCE_COLUMNS + "where s.source_id = %s"
+
+STATUS_SOURCES_SQL = SOURCE_COLUMNS + """
+where s.status <> 'dropped'
 order by s.connector, s.name
 """
 
-STATUS_SOURCES_SQL = """
-select s.source_id, s.name, s.connector, s.status, s.last_polled,
-       (select count(*) from event e where e.source_id = s.source_id) as events
-from source s
-order by s.connector, s.name
+LINKS_SQL = """
+select link_id, url, title, kind, site, status, error, event_id, created_at
+from link_queue order by created_at desc limit 30
 """
+
+# connectors whose source.url is the feed the poller reads
+FEED_CONNECTORS = ("rss", "podcast", "youtube", "bridge")
+BUCKET_LABELS = {"edgar": "Filings", "manual": "Uploads", "link": "Links"}
+
+
+def source_label(connector, config):
+    """User-facing type for a source row (build spec v4 §4 label list); shared
+    by /api/sources and /api/status."""
+    cfg = config or {}
+    site = cfg.get("site")
+    if connector == "rss":
+        if site == "ft":
+            return "FT feed"
+        if site == "wsj":
+            return "WSJ feed"
+        if site == "substack" or cfg.get("substack"):
+            return "Substack"
+        return "News feed"
+    if connector == "podcast":
+        return "Podcast"
+    if connector == "youtube":
+        return "YouTube playlist" if cfg.get("playlist_id") else "YouTube channel"
+    if connector == "x":
+        return "X account"
+    if connector == "bridge":
+        name = ((cfg.get("bridge") or {}).get("name") or "").strip()
+        if name.endswith("Bridge") and len(name) > 6:
+            name = name[:-6]
+        return name or "Bridge"
+    return BUCKET_LABELS.get(connector, connector)
+
+
+def credential_ref(site, sites_set):
+    """{site, set} for a source that needs a sign-in, else None. Never carries
+    the stored value."""
+    if not site or site not in credentials.SITES:
+        return None
+    return {"site": site, "set": site in sites_set}
+
+
+def source_json(r, sites_set=()):
+    cfg = r["config"] or {}
+    site = cfg.get("site")
+    return {"source_id": r["source_id"], "name": r["name"],
+            "connector": r["connector"],
+            "label": source_label(r["connector"], cfg),
+            "site": site,
+            "url": r["url"],
+            "feed_url": (r["url"] if r["connector"] in FEED_CONNECTORS
+                         else cfg.get("feed_url")),
+            "status": r["status"],
+            "last_polled": iso(r["last_polled"]),
+            "last_error": r["last_error"],
+            "events": r["events"],
+            "credential": credential_ref(site, sites_set)}
+
+
+def link_json(r):
+    return {"link_id": r["link_id"], "url": r["url"], "title": r["title"],
+            "kind": r["kind"], "site": r["site"], "status": r["status"],
+            "error": r["error"], "event_id": r["event_id"],
+            "created_at": iso(r["created_at"])}
+
+
+def credential_sites(con):
+    """The sites that have a value stored (the value itself never leaves
+    credentials.py)."""
+    return {r["site"] for r in con.execute("select site from credential")}
 
 FAILED_EVENTS_SQL = """
 select e.event_id, e.connector,
@@ -296,10 +381,18 @@ class WatchlistBody(BaseModel):
     sector: str | None = None
 
 
-class FeedBody(BaseModel):
-    name: str
+class ResolveBody(BaseModel):
     url: str
-    kind: str
+
+
+class SourceBody(BaseModel):
+    url: str
+    name: str | None = None
+
+
+class CredentialBody(BaseModel):
+    value: str
+    note: str | None = None
 
 
 class ErDecisionBody(BaseModel):
@@ -398,8 +491,11 @@ def create_app():
                         "error": r["error"]} for r in stages],
             "counts": counts,
             "sources": [{"source_id": r["source_id"], "name": r["name"],
-                         "connector": r["connector"], "status": r["status"],
+                         "connector": r["connector"],
+                         "label": source_label(r["connector"], r["config"]),
+                         "status": r["status"],
                          "last_polled": iso(r["last_polled"]),
+                         "last_error": r["last_error"],
                          "events": r["events"]}
                         for r in con.execute(STATUS_SOURCES_SQL)],
             "failed_events": [{"event_id": r["event_id"],
@@ -1005,36 +1101,43 @@ def create_app():
 
     @app.get("/api/sources")
     def api_sources(con=Depends(get_con)):
+        sites_set = credential_sites(con)
         return {
-            "watchlist": [{"ticker": r["ticker"], "sector": r["sector"],
-                           "active": r["active"], "company": r["company"],
-                           "events": r["events"]}
+            "watchlist": [{"ticker": r["ticker"], "name": r["name"],
+                           "sector": r["sector"], "industry": r["industry"],
+                           "exchange": r["exchange"], "country": r["country"],
+                           "active": r["active"], "events": r["events"],
+                           "cik": r["cik"]}
                           for r in con.execute(WATCHLIST_SQL)],
-            "feeds": [{"source_id": r["source_id"], "name": r["name"],
-                       "connector": r["connector"], "url": r["url"],
-                       "status": r["status"],
-                       "last_polled": iso(r["last_polled"]),
-                       "events": r["events"]}
-                      for r in con.execute(FEEDS_SQL)],
+            "sources": [source_json(r, sites_set)
+                        for r in con.execute(SOURCES_SQL)],
+            "links": [link_json(r) for r in con.execute(LINKS_SQL)],
+            "credentials": credentials.status(con),
         }
 
     @app.post("/api/watchlist")
     def api_add_ticker(body: WatchlistBody, con=Depends(get_con)):
-        ticker = body.ticker.strip().upper()
+        ticker = watchlist.clean_ticker(body.ticker)
+        if not ticker:
+            raise HTTPException(400, "Enter a ticker.")
         sector = (body.sector or "").strip() or None
-        reg = con.execute("select title from registry_sec where ticker=%s",
-                          (ticker,)).fetchone()
-        if reg is None:
+        row = watchlist.resolve_and_upsert(con, ticker, "web", sector)
+        if row is None:
             raise HTTPException(
-                400, f"Unknown ticker {ticker}. Not in the SEC registry.")
-        con.execute(
-            "insert into watchlist (ticker, sector, active, added_by) "
-            "values (%s, %s, true, 'web') on conflict (ticker) do update "
-            "set active = true, "
-            "sector = coalesce(excluded.sector, watchlist.sector)",
-            (ticker, sector))
+                400, f"Unknown ticker {ticker}. Yahoo Finance and the SEC "
+                     f"registry do not list it.")
         con.commit()
-        return {"ok": True, "ticker": ticker, "company": reg["title"]}
+        return {"ok": True, "ticker": row["ticker"], "name": row["name"],
+                "sector": row["sector"], "exchange": row["exchange"]}
+
+    @app.get("/api/watchlist/search")
+    def api_watchlist_search(q: str = ""):
+        # the suggestion box is a convenience: a short query and any Yahoo
+        # failure both answer with an empty list, never an error
+        q = (q or "").strip()
+        if len(q) < 2:
+            return []
+        return watchlist.search(q)
 
     @app.post("/api/watchlist/{ticker}/toggle")
     def api_toggle_ticker(ticker: str, con=Depends(get_con)):
@@ -1046,22 +1149,72 @@ def create_app():
         con.commit()
         return {"ok": True, "active": row["active"]}
 
-    @app.post("/api/feeds")
-    def api_add_feed(body: FeedBody, con=Depends(get_con)):
-        if body.kind not in ("podcast", "rss"):
-            raise HTTPException(400, "Kind must be podcast or rss.")
-        name, url = body.name.strip(), body.url.strip()
-        if body.kind == "podcast" and not name.startswith("podcast:"):
+    def resolved(con, raw_url):
+        """Route a pasted URL, or 400 when it is not a link at all."""
+        # link_queue.url carries a plain btree unique index, which refuses a
+        # value past roughly 2.7 KB; without this the insert raises and the
+        # page gets a 500 instead of the copy below
+        if len(raw_url or "") > 2048:
+            raise HTTPException(
+                400, "That does not look like a link. Paste a full address.")
+        url = router.normalize((raw_url or "").strip())
+        host = ""
+        try:
+            host = urlsplit(url).hostname or ""
+        except ValueError:
+            host = ""
+        # a single-label host is a container or LAN name, never a public site
+        if not url or fetch.blocked_host(host):
+            raise HTTPException(
+                400, "That does not look like a link. Paste a full address.")
+        return router.resolve(con, url)
+
+    @app.post("/api/sources/resolve")
+    def api_resolve_source(body: ResolveBody, con=Depends(get_con)):
+        return resolved(con, body.url).as_dict()
+
+    @app.post("/api/sources")
+    def api_add_source(body: SourceBody, con=Depends(get_con)):
+        res = resolved(con, body.url)
+        if res.kind == "unsupported":
+            raise HTTPException(400, res.message or router.NO_FEED)
+        existing = router.duplicate_of(con, res)
+        if existing:
+            raise HTTPException(409, f"Already added as {existing}.")
+        if res.one_off:
+            if not res.link_kind:
+                raise HTTPException(400, router.NO_FEED)
+            # a pasted article, post or video is fetched once, not polled;
+            # everything but video runs now so the page can show the outcome
+            row = links.enqueue(con, res.url, res.link_kind, res.site, "web")
+            con.commit()          # the row survives even if the fetch blows up
+            if not row.get("created") and row["status"] == "done":
+                # pasted a second time: the vault already holds it, and the
+                # queue row is reported as such instead of as a fresh add
+                return {"ok": True, "kind": "link",
+                        "link": {**link_json(row), "status": "duplicate"}}
+            if res.link_kind != "youtube_video":
+                try:
+                    row = links.process_one(con, row["link_id"])
+                    con.commit()
+                except Exception as e:
+                    con.rollback()
+                    print(f"link {row['link_id']}: {e!r}")
+            return {"ok": True, "kind": "link", "link": link_json(row)}
+        name = (body.name or "").strip() or res.name or \
+            (urlsplit(res.url).hostname or res.url)
+        if res.connector == "podcast" and not name.startswith("podcast:"):
             name = f"podcast:{name}"
-        if con.execute("select 1 from source where name=%s and connector=%s",
-                       (name, body.kind)).fetchone():
-            raise HTTPException(409, f"Feed {name} already exists.")
-        row = con.execute(
-            "insert into source (name, connector, url, status, added_by) "
-            "values (%s, %s, %s, 'active', 'web') returning source_id",
-            (name, body.kind, url)).fetchone()
+        new = con.execute(
+            "insert into source (name, connector, url, config, status, "
+            "added_by) values (%s, %s, %s, %s, 'active', 'web') "
+            "returning source_id",
+            (name, res.connector, res.feed_url or res.url,
+             Jsonb(res.config or {}))).fetchone()
         con.commit()
-        return {"ok": True, "source_id": row["source_id"]}
+        row = con.execute(SOURCE_ROW_SQL, (new["source_id"],)).fetchone()
+        return {"ok": True, "kind": "source",
+                "source": source_json(row, credential_sites(con))}
 
     @app.post("/api/sources/{source_id}/toggle")
     def api_toggle_source(source_id: uuid.UUID, con=Depends(get_con)):
@@ -1069,11 +1222,74 @@ def create_app():
         row = con.execute(
             "update source set status = case when status='active' "
             "then 'demoted' else 'active' end where source_id=%s "
-            "returning status", (source_id,)).fetchone()
+            "and status <> 'dropped' returning status", (source_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "No such source.")
         con.commit()
         return {"ok": True, "status": row["status"]}
+
+    @app.delete("/api/sources/{source_id}")
+    def api_drop_source(source_id: uuid.UUID, con=Depends(get_con)):
+        # removed from the page, never polled again; the rows stay for lineage
+        row = con.execute(
+            "update source set status='dropped' where source_id=%s "
+            "returning source_id", (source_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "No such source.")
+        con.commit()
+        return {"ok": True}
+
+    @app.post("/api/links/{link_id}/retry")
+    def api_retry_link(link_id: uuid.UUID, con=Depends(get_con)):
+        row = con.execute(
+            "update link_queue set status='queued', attempts=0, error=null, "
+            "updated_at=now() where link_id=%s returning *",
+            (link_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "No such link.")
+        con.commit()              # queued again even if the fetch blows up
+        try:
+            row = links.process_one(con, link_id)
+            con.commit()
+        except Exception as e:
+            con.rollback()
+            print(f"link {link_id}: {e!r}")
+        return link_json(row)
+
+    # ------------------------------------------------------------ sign-ins
+
+    @app.put("/api/credentials/{site}")
+    def api_set_credential(site: str, body: CredentialBody,
+                           con=Depends(get_con)):
+        if site not in credentials.SITES:
+            raise HTTPException(400, "No sign-in for that site.")
+        try:
+            credentials.set(con, site, body.value or "", body.note)
+        except credentials.InvalidCredential as e:
+            raise HTTPException(400, str(e)) from None
+        # the sign-in is what those rows were waiting for
+        links.requeue_blocked(con, site)
+        con.execute("update source set last_error=null, last_error_at=null "
+                    "where config->>'site' = %s", (site,))
+        con.commit()
+        return {"ok": True, "site": site, "set": True}
+
+    @app.delete("/api/credentials/{site}")
+    def api_delete_credential(site: str, con=Depends(get_con)):
+        if site not in credentials.SITES:
+            raise HTTPException(400, "No sign-in for that site.")
+        credentials.delete(con, site)
+        con.commit()
+        return {"ok": True}
+
+    @app.post("/api/credentials/{site}/test")
+    def api_test_credential(site: str, con=Depends(get_con)):
+        if site not in credentials.SITES:
+            raise HTTPException(400, "No sign-in for that site.")
+        ok, message = probes.run(con, site)
+        credentials.record_check(con, site, ok, message)
+        con.commit()
+        return {"ok": ok, "message": message}
 
     @app.post("/api/upload")
     def api_upload(files: list[UploadFile] = File(...), con=Depends(get_con)):

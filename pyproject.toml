@@ -16,6 +16,14 @@ dependencies = [
     # production; the wheel bundles a standalone CLI binary (no node needed).
     "claude-agent-sdk==0.2.128",
     "anyio",
+    # sources overhaul (build spec v4): ticker resolution, YouTube transcripts,
+    # and the Chrome TLS fingerprint the premium fetchers use. yt-dlp-ejs is
+    # yt-dlp's JavaScript-challenge solver; it runs on the node binary the
+    # Dockerfile copies out of the frontend stage.
+    "yfinance>=1.6.0",
+    "yt-dlp>=2026.7.4",
+    "yt-dlp-ejs>=0.8.0",
+    "curl-cffi>=0.16.0",
 ]
 
 [project.optional-dependencies]
