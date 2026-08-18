@@ -190,10 +190,27 @@ the `claim_asserted` view, not in prompts).
   narration MP3s the Dow Jones GraphQL gateway lists — all recorded as
   follow-ups in spec §11, none built.
 
+  **CloakBrowser sidecar (2026-08-18, owner direction: FT/WSJ full text is
+  scraped with the team's paid accounts, no APIs, ToS settled).**
+  `caf-cloakbrowser` (cloakhq/cloakbrowser:0.5.7, `cloakserve` headed under
+  Xvfb, internal only, 1.5 GB / 1 CPU) + `graph/browser.py` (Playwright over
+  CDP, persistent context reuse, cookie injection, wall-clear polling with
+  fresh-context retries) + the `fetch.get` hook for FT/WSJ article pages.
+  Spec §10c. Verified in production: FT probe "Signed in.", FT markets feed
+  ingesting 3-5k-char bodies (~8 s each). Cookies are harvested with a
+  headed CloakBrowser on the owner's Mac (`scratchpad/cloak/login.py`
+  pattern: persistent profile, sign in, export Netscape cookies.txt) and
+  pushed with `PUT /api/credentials/<site>`; FT session = `FTSession_s`,
+  WSJ = `DJSESSION`/`sso`/`session`/`usr_prof_v2`. When a cookie expires the
+  source row flips to "Sign-in needed": harvest again. Optional
+  `CAF_CLOAK_LICENSE_KEY` in the server `.env` selects the current keyed
+  CloakBrowser build (free key = 1 concurrent session; the keyless v146
+  build is what runs without it).
+
   Owner steps: paste the Substack sid, YouTube cookies (spare account) and
-  the X bearer on `/vault/sources` → Sign-ins and press Test; FT/WSJ cookies
-  are optional (Test explains the wall). Optional `CAF_BRIDGE_TOKEN` in the
-  server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
+  the X bearer on `/vault/sources` → Sign-ins and press Test. FT is loaded;
+  WSJ needs a subscriber sign-in harvest. Optional `CAF_BRIDGE_TOKEN` /
+  `CAF_CLOAK_LICENSE_KEY` in the server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
   bridge image is pulled by `compose up`; its health check is part of the
   gate).
 
