@@ -197,12 +197,15 @@ the `claim_asserted` view, not in prompts).
   CDP, persistent context reuse, cookie injection, wall-clear polling with
   fresh-context retries) + the `fetch.get` hook for FT/WSJ article pages.
   Spec §10c. Verified in production: FT probe "Signed in.", FT markets feed
-  ingesting 3-5k-char bodies (~8 s each). Cookies are harvested with a
-  headed CloakBrowser on the owner's Mac (`scratchpad/cloak/login.py`
-  pattern: persistent profile, sign in, export Netscape cookies.txt) and
-  pushed with `PUT /api/credentials/<site>`; FT session = `FTSession_s`,
-  WSJ = `DJSESSION`/`sso`/`session`/`usr_prof_v2`. When a cookie expires the
-  source row flips to "Sign-in needed": harvest again. Optional
+  ingesting 3-5k-char bodies (~8 s each). Sign in from the page: the
+  Sign-ins card's "Sign in" button (FT, WSJ) opens a live view of the
+  sidecar browser (`graph/signin.py`, spec §10d); the owner logs in there
+  and Done stores the cookies (born on the server's own IP and profile).
+  Fallback: paste a cookies.txt or `PUT /api/credentials/<site>`. FT session
+  = `FTSession_s`, WSJ = `DJSESSION`/`sso`. When a cookie expires the source
+  row flips to "Sign-in needed": press Sign in again. WSJ subscription had
+  lapsed on 2026-08-18; the browser path only runs for a site whose sign-in
+  is pasted, so WSJ stays on feed teasers until then. Optional
   `CAF_CLOAK_LICENSE_KEY` in the server `.env` selects the current keyed
   CloakBrowser build (free key = 1 concurrent session; the keyless v146
   build is what runs without it).
