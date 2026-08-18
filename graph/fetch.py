@@ -20,7 +20,7 @@ import re
 import socket
 from urllib.parse import urlsplit
 
-from . import credentials
+from . import browser, credentials
 
 BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
               "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
@@ -111,6 +111,15 @@ _WALLS = {
     },
 }
 
+# Markers a full article never carries, checked before the body markers below.
+# The body list matches bare substrings ("article-body"), so an FT barrier that
+# renders its teaser inside `.article__content-body` would otherwise escape as
+# a genuine article and ingest as one.
+_HARD_WALL = {
+    "ft": ("<title>Subscribe to read",),
+    "wsj": ("geo.captcha-delivery.com", "Access Denied"),
+}
+
 
 def detect_wall(site: str | None, status: int, text: str) -> str | None:
     """Return a short reason when the response is a sign-in / bot wall for
@@ -122,6 +131,8 @@ def detect_wall(site: str | None, status: int, text: str) -> str | None:
     if status in spec["codes"]:
         return f"HTTP {status}"
     head = text[:200_000]
+    if any(m in head for m in _HARD_WALL.get(site or "", ())):
+        return "sign-in page returned"
     if any(m in head for m in spec["body"]):
         return None
     if any(m.lower() in head.lower() for m in spec["wall"]):
@@ -207,6 +218,24 @@ def guard_url(url: str) -> str:
 # ---------------------------------------------------------------- fetch
 
 
+BROWSER_SITES = ("ft", "wsj")
+
+
+def _browser_cookies(con, site: str) -> list[dict]:
+    """The site's stored cookies as Playwright cookie dicts (all of them: the
+    browser scopes by domain itself)."""
+    if con is None:
+        return []
+    value = credentials.value(con, site)
+    if not value:
+        return []
+    try:
+        rows = credentials.parse_cookies(value)
+    except credentials.InvalidCredential:
+        return []
+    return browser.playwright_cookies(rows, credentials.SITE_HOSTS.get(site, ()))
+
+
 def _cookies_for(con, site: str | None, url: str) -> dict[str, str]:
     if not site or con is None:
         return {}
@@ -251,6 +280,27 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
     BlockedAddress when the URL points inside the private network. Transport
     errors propagate as the underlying library's exceptions."""
     host = guard_url(url)
+    # FT and WSJ article pages: a real browser first (build spec v4 §10c). The
+    # plain path below never gets past their JS walls from a server IP; the
+    # sidecar does, and the pasted subscriber cookies then decide the body.
+    # Feeds and APIs (allow_wall=True) stay on the plain path.
+    if site in BROWSER_SITES and not allow_wall and browser.enabled() \
+            and browser.looks_like_article_url(url, site):
+        try:
+            resp = browser.get(url, site=site, cookies=_browser_cookies(con, site),
+                               timeout=max(timeout, int(browser.budget_s())),
+                               max_bytes=max_bytes)
+        except browser.BrowserUnavailable as e:
+            print(f"browser: sidecar unavailable for {site} ({e}); plain fetch")
+        else:
+            # the browser follows redirects itself, so the same guard the plain
+            # path runs on its final URL runs on the rendered page's
+            if host_of(resp.url) not in ("", host):
+                guard_url(resp.url)
+            reason = detect_wall(site, resp.status, resp.text)
+            if reason:
+                raise SignInNeeded(site, reason)
+            return resp
     hdrs = dict(DEFAULT_HEADERS)
     if headers:
         hdrs.update(headers)

@@ -26,9 +26,9 @@ from .connectors import youtube as youtube_connector
 TIMEOUT = 20
 MIN_BODY = 400        # §7: the article body must arrive, not the teaser
 OK = "Signed in."
-WALLED = ("Signed in, but {site} blocks server fetches of article pages "
-          "(bot wall). Headlines still flow from the feeds; full text needs "
-          "the licensed API or a browser-based fetcher.")
+WALLED = ("Signed in, but the article page came back behind {site}'s wall this "
+          "time. Headlines still flow from the feeds; article text arrives when "
+          "the browser clears the wall.")
 
 # the public feeds the article probes read their newest item from
 FEEDS = {"ft": "https://www.ft.com/rss/home/international",

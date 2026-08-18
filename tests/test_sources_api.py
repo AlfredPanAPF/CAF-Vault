@@ -380,7 +380,7 @@ def test_ft_probe_tells_a_live_session_from_a_bot_wall(con, monkeypatch):
     monkeypatch.setattr(fetch, "get", get)
     ok, message = probes.run(con, "ft")
     assert ok is False
-    assert message.startswith("Signed in, but Financial Times blocks server fetches")
+    assert message.startswith("Signed in, but the article page came back behind Financial Times")
 
     # and an invalid session is reported as such, without touching ft.com
     def get2(url, **kw):

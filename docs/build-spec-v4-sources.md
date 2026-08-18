@@ -769,6 +769,47 @@ most a few articles per cycle, hard timeouts, and falls back to the teaser
 path on any failure. Untested until real subscriber cookies exist: whether
 the entitlement layer then returns full text. Not built.
 
+## 10c. CloakBrowser sidecar for FT/WSJ article bodies (2026-08-18, built)
+
+Owner direction: FT and WSJ full text is scraped with the team's paid accounts
+through CloakBrowser; no APIs, no ToS discussion. Design:
+
+- Compose service `caf-cloakbrowser` (`cloakhq/cloakbrowser:0.5.7`, command
+  `cloakserve --headless=false --idle-timeout=600 --fingerprint-timezone=Asia/Singapore
+  --fingerprint-locale=en-US`, `mem_limit 1536m`, `cpus 1.0`, `/tmp` tmpfs,
+  `CLOAKBROWSER_AUTO_UPDATE=false`, optional `CLOAKBROWSER_LICENSE_KEY` from
+  `CAF_CLOAK_LICENSE_KEY`; health = `/json/version`). No ports, no nginx route:
+  CDP is full browser control. Vault web + worker get `CAF_BROWSER_URL=http://caf-cloakbrowser:9222`.
+- `graph/browser.py`: `get(url, site, cookies, timeout)` connects with
+  Playwright `connect_over_cdp("<url>?fingerprint=vault-<site>&timezone=&locale=")`,
+  uses the remote browser's persistent default context first (it keeps the
+  `cf_clearance` / `datadome` cookies a cleared wall leaves behind, so the
+  next article skips the challenge), injects the site's cookies, loads the
+  page, polls up to 30 s for the wall markers to disappear and a body marker
+  to appear, retries with fresh contexts up to 3 attempts inside the time
+  budget, and returns a `fetch.Response` (401/403 first answers become 200
+  once the wall is gone; header `x-caf-fetched-by: browser`). One page at a
+  time per process. Any transport failure raises `BrowserUnavailable`.
+- `graph/fetch.py`: for `site in ("ft", "wsj")`, `allow_wall=False`, sidecar
+  configured and `browser.looks_like_article_url()` (FT `/content/<uuid>`,
+  wsj.com pages), the browser path runs first with the credential's cookies
+  as Playwright cookies; `BrowserUnavailable` falls back to the plain path
+  (which reports the wall). `detect_wall` still judges the returned HTML, so
+  a stuck challenge or an FT "Subscribe to read" barrier (session gone) is
+  still "Sign-in needed". Feeds and APIs never touch the browser.
+- Cookies come from a headed CloakBrowser sign-in on the owner's Mac
+  (`scratchpad/cloak/login.py`: persistent profile, tabs on the FT and WSJ
+  login pages, cookies.txt written when the session cookie appears) and are
+  pasted/pushed into the Sign-ins card. FT session cookie: `FTSession_s`.
+  WSJ (2026-08): `DJSESSION`, `sso`, `session`, `usr_prof_v2`, `djcs_route`.
+
+Verified 2026-08-18 from a datacenter VPN egress: through the containerised
+sidecar with the FT session cookies, three FT articles returned full text
+(3,726 / 6,815 / 2,851 chars) in 4-6 s each once the first challenge cleared;
+without a cleared context Cloudflare's challenge is hit-or-miss per
+navigation (retries handle it). WSJ: DataDome cleared instantly with the
+harvested cookies; body length then depends on the account's entitlement.
+
 ## 11. Out of scope (recorded, not built)
 
 - Full text for FT and WSJ from the server. Verified walls (Cloudflare

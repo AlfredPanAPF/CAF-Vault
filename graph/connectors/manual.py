@@ -21,7 +21,11 @@ from .. import db, envelope
 # syndicated FT/WSJ pages keep the markup but not the hostname.
 ARTICLE_SELECTORS = {
     "ft.com": ".article__content-body, #article-body",
-    "wsj.com": 'section[data-type="article-body"], .article-content, '
+    # WSJ's live markup roots the body at `article[style*="article-body"]` and
+    # writes paragraphs as `div[data-type="paragraph"]` (docs/rss-bridge-brief),
+    # so the attribute is matched on any element, not just a <section>
+    "wsj.com": 'section[data-type="article-body"], article[style*="article-body"], '
+               '[data-type="article-body"], .article-content, '
                '[class*="ArticleBody"]',
     "substack.com": ".body.markup, .available-content",
 }
@@ -133,7 +137,10 @@ def jsonld_article(soup) -> dict | None:
 
 
 def _paragraphs(container) -> str:
-    paras = [p.get_text(" ", strip=True) for p in container.find_all("p")]
+    # WSJ holds the prose directly in `div[data-type="paragraph"]` blocks with
+    # no <p> anywhere, so a container without paragraphs is asked for those
+    nodes = container.find_all("p") or container.select('[data-type="paragraph"]')
+    paras = [n.get_text(" ", strip=True) for n in nodes]
     paras = [p for p in paras if len(p) > PARA_FLOOR]
     if paras:
         return "\n\n".join(paras)

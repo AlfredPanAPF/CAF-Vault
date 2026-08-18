@@ -210,7 +210,7 @@ def stale_since(parsed: list[dict], today=None) -> str | None:
 # fix is to sign in; with one, FT and WSJ still block server fetches at the
 # edge (docs/build-spec-v4-sources.md, hard facts) and the honest state is
 # that headlines flow and article text does not
-HEADLINES_ONLY = "Headlines only, article pages are blocked"
+HEADLINES_ONLY = "Headlines only this cycle, article pages came back walled"
 
 
 def wall_message(con, site: str | None) -> str:

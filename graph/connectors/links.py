@@ -50,7 +50,7 @@ def blocked_message(site: str | None, con=None) -> str:
     (docs/build-spec-v4-sources.md, hard facts)."""
     name = SITE_NAMES.get(site or "")
     if site in ("ft", "wsj") and con is not None and credentials.is_set(con, site):
-        return f"{name} blocks server fetches of article pages."
+        return f"{name} returned its wall for that article. Retry later."
     return f"Sign-in needed for {name}." if name else "Sign-in needed."
 
 
