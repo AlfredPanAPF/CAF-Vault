@@ -117,7 +117,10 @@ _WALLS = {
 # a genuine article and ingest as one.
 _HARD_WALL = {
     "ft": ("<title>Subscribe to read",),
-    "wsj": ("geo.captcha-delivery.com", "Access Denied"),
+    # a metered/expired WSJ session renders two paragraphs plus this line;
+    # that is not an article, it is the wall in a friendlier coat
+    "wsj": ("geo.captcha-delivery.com", "Access Denied",
+            "run out of free articles", "Subscribe for unlimited access"),
 }
 
 
@@ -284,10 +287,14 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
     # plain path below never gets past their JS walls from a server IP; the
     # sidecar does, and the pasted subscriber cookies then decide the body.
     # Feeds and APIs (allow_wall=True) stay on the plain path.
+    # ... and only once the site's sign-in is pasted: without cookies the
+    # browser would fetch metered previews, which read as articles but are
+    # not; the plain path's wall then keeps the source on feed teasers.
+    site_cookies = _browser_cookies(con, site) if site in BROWSER_SITES else []
     if site in BROWSER_SITES and not allow_wall and browser.enabled() \
-            and browser.looks_like_article_url(url, site):
+            and site_cookies and browser.looks_like_article_url(url, site):
         try:
-            resp = browser.get(url, site=site, cookies=_browser_cookies(con, site),
+            resp = browser.get(url, site=site, cookies=site_cookies,
                                timeout=max(timeout, int(browser.budget_s())),
                                max_bytes=max_bytes)
         except browser.BrowserUnavailable as e:

@@ -240,6 +240,17 @@ def public_dns(monkeypatch):
                         [(2, 1, 6, "", ("93.184.216.34", port or 443))])
 
 
+@pytest.fixture
+def signed_in(con):
+    """FT and WSJ credentials stored: the browser path only runs for a site
+    whose sign-in is pasted (without cookies it would fetch metered
+    previews). Yields the connection to pass as con=."""
+    credentials.set(con, "ft", FT_COOKIES)
+    credentials.set(con, "wsj", "DJSESSION=abc; sso=def")
+    yield con
+    con.rollback()
+
+
 class FakeHTTP:
     """The little of a streamed requests response that fetch.get reads."""
 
@@ -592,7 +603,7 @@ def test_browser_get_cdp_url_carries_the_fingerprint(monkeypatch):
 
 
 def test_fetch_get_sends_ft_articles_through_the_browser(monkeypatch, sidecar,
-                                                         public_dns):
+                                                         public_dns, signed_in):
     calls = []
 
     def fake_browser_get(url, **kw):
@@ -602,7 +613,7 @@ def test_fetch_get_sends_ft_articles_through_the_browser(monkeypatch, sidecar,
     monkeypatch.setattr(browser, "get", fake_browser_get)
     no_plain_path(monkeypatch)              # the curl path is never reached
 
-    resp = fetch.get(FT_ARTICLE, site="ft")
+    resp = fetch.get(FT_ARTICLE, site="ft", con=signed_in)
 
     assert resp.text == FT_BODY_HTML
     assert resp.headers["x-caf-fetched-by"] == "browser"
@@ -643,14 +654,14 @@ def test_fetch_get_falls_back_when_the_sidecar_is_unavailable(monkeypatch,
 
 
 def test_fetch_get_reports_a_walled_browser_page(monkeypatch, sidecar,
-                                                 public_dns):
+                                                 public_dns, signed_in):
     no_plain_path(monkeypatch)
 
     # the challenge cleared but FT answered with its barrier
     monkeypatch.setattr(browser, "get",
                         lambda url, **kw: browser_response(FT_BARRIER_HTML))
     with pytest.raises(fetch.SignInNeeded) as e:
-        fetch.get(FT_ARTICLE, site="ft")
+        fetch.get(FT_ARTICLE, site="ft", con=signed_in)
     assert e.value.site == "ft"
     assert e.value.detail == "sign-in page returned"
 
@@ -658,7 +669,7 @@ def test_fetch_get_reports_a_walled_browser_page(monkeypatch, sidecar,
     monkeypatch.setattr(browser, "get",
                         lambda url, **kw: browser_response(WALL_HTML, status=403))
     with pytest.raises(fetch.SignInNeeded) as e:
-        fetch.get(FT_ARTICLE, site="ft")
+        fetch.get(FT_ARTICLE, site="ft", con=signed_in)
     assert e.value.detail == "HTTP 403"
 
 
@@ -679,14 +690,19 @@ def test_fetch_get_hands_the_browser_the_stored_cookies(con, monkeypatch,
     assert [c["name"] for c in cookies] == ["FTSession", "FTSession_s"]
     assert cookies[0]["domain"] == ".ft.com"
 
-    # no credential stored: the browser still runs, with an empty jar
+    # no credential stored: the browser is skipped (it would only fetch a
+    # metered preview) and the plain path runs instead
     credentials.delete(con, "ft")
+    plain = []
+    monkeypatch.setattr(fetch, "_cffi", None)
+    monkeypatch.setattr(fetch._requests, "get",
+                        lambda url, **kw: plain.append(url) or FakeHTTP(FT_BODY_HTML))
     fetch.get(FT_ARTICLE, site="ft", con=con)
-    assert calls[1]["cookies"] == []
+    assert len(calls) == 1 and plain == [FT_ARTICLE]
 
 
 def test_fetch_get_asks_for_the_browsers_whole_retry_budget(monkeypatch,
-                                                            sidecar, public_dns):
+                                                            sidecar, public_dns, signed_in):
     calls = []
 
     def fake_browser_get(url, **kw):
@@ -696,13 +712,13 @@ def test_fetch_get_asks_for_the_browsers_whole_retry_budget(monkeypatch,
     monkeypatch.setattr(browser, "get", fake_browser_get)
     no_plain_path(monkeypatch)
 
-    fetch.get(FT_ARTICLE, site="ft", timeout=30)
+    fetch.get(FT_ARTICLE, site="ft", timeout=30, con=signed_in)
     # a 30s caller must not clip the retries off the sidecar's budget
     assert calls[0]["timeout"] >= browser.budget_s()
     assert calls[0]["max_bytes"] == fetch.MAX_BYTES   # the plain path's cap
 
 
-def test_wsj_article_survives_the_browser_path(monkeypatch, sidecar, public_dns):
+def test_wsj_article_survives_the_browser_path(monkeypatch, sidecar, public_dns, signed_in):
     """The rendered WSJ document all the way through: DataDome's tag on the
     page, a 401 on the first hit, and a body written as paragraph divs."""
     monkeypatch.setattr(browser, "get",
@@ -710,7 +726,7 @@ def test_wsj_article_survives_the_browser_path(monkeypatch, sidecar, public_dns)
                                                            url=WSJ_ARTICLE))
     no_plain_path(monkeypatch)
 
-    resp = fetch.get(WSJ_ARTICLE, site="wsj")       # no SignInNeeded
+    resp = fetch.get(WSJ_ARTICLE, site="wsj", con=signed_in)       # no SignInNeeded
     _title, _published, body = manual.extract_article(resp.text, WSJ_ARTICLE)
 
     assert WSJ_PARA in body
@@ -719,7 +735,7 @@ def test_wsj_article_survives_the_browser_path(monkeypatch, sidecar, public_dns)
 
 def test_fetch_get_reports_an_ft_barrier_that_carries_a_teaser(monkeypatch,
                                                                sidecar,
-                                                               public_dns):
+                                                               public_dns, signed_in):
     """FT's barrier renders the topper and a teaser inside the same container
     a real article uses, so the body markers alone cannot clear it."""
     monkeypatch.setattr(browser, "get",
@@ -727,7 +743,7 @@ def test_fetch_get_reports_an_ft_barrier_that_carries_a_teaser(monkeypatch,
     no_plain_path(monkeypatch)
 
     with pytest.raises(fetch.SignInNeeded) as e:
-        fetch.get(FT_ARTICLE, site="ft")
+        fetch.get(FT_ARTICLE, site="ft", con=signed_in)
     assert e.value.detail == "sign-in page returned"
 
 

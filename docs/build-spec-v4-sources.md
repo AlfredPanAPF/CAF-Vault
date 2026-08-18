@@ -791,9 +791,12 @@ through CloakBrowser; no APIs, no ToS discussion. Design:
   once the wall is gone; header `x-caf-fetched-by: browser`). One page at a
   time per process. Any transport failure raises `BrowserUnavailable`.
 - `graph/fetch.py`: for `site in ("ft", "wsj")`, `allow_wall=False`, sidecar
-  configured and `browser.looks_like_article_url()` (FT `/content/<uuid>`,
-  wsj.com pages), the browser path runs first with the credential's cookies
-  as Playwright cookies; `BrowserUnavailable` falls back to the plain path
+  configured, **a credential pasted for the site** (without cookies the
+  browser would only fetch metered previews, so the plain path keeps the
+  source on feed teasers instead) and `browser.looks_like_article_url()` (FT
+  `/content/<uuid>`, wsj.com pages), the browser path runs first with the
+  credential's cookies as Playwright cookies; a WSJ metered page ("run out
+  of free articles") counts as a wall; `BrowserUnavailable` falls back to the plain path
   (which reports the wall). `detect_wall` still judges the returned HTML, so
   a stuck challenge or an FT "Subscribe to read" barrier (session gone) is
   still "Sign-in needed". Feeds and APIs never touch the browser.
