@@ -720,6 +720,55 @@ keeps reading `watchlist[].sector`.
 
 ---
 
+## 10b. Browser fetcher assessment (2026-08-18): keep curl_cffi; a real browser is only worth it for FT/WSJ article bodies
+
+Question: should `graph/fetch.py` move from curl_cffi (Chrome TLS fingerprint,
+no JS) to CloakBrowser (github.com/CloakHQ/CloakBrowser, a patched Chromium
+driven through Playwright)? Tested the same day from a datacenter egress
+(Vultr) with the same targets, and had the repo, issues and licence read.
+
+Live results (headless unless noted; small samples, one IP, one day):
+
+| Client | ft.com `/content/<uuid>` | wsj.com article | notes |
+|---|---|---|---|
+| curl_cffi + browser headers (current) | 403 Cloudflare challenge, 0/6 | 401 DataDome, 0/6 | never reaches the origin |
+| CloakBrowser free binary (v145 mac / v146 linux), headless | origin reached 3/5 ("Subscribe to read" paywall page); 2/5 stuck on the challenge for 60 s | DataDome served a JS interstitial that auto-cleared 5/5; article DOM rendered; later pages in the same context 200 in ~3 s | ~2.5 CPU-s per page, 600-900 MB RSS across processes on the Mac (vendor: ~190-280 MB), 625 MB image |
+| patchright (open source, Apache-2.0), headless shell | challenge 0/3 | DataDome CAPTCHA page 0/2 | |
+| patchright, full Chromium, headed | origin reached 2/2 | DataDome served a CAPTCHA (`captcha-delivery.com/captcha/`) 0/2 after 35 s | |
+
+Reading: FT's wall is "run real JS in a real browser" (any headed browser
+passes); WSJ's DataDome scores the client and served CloakBrowser a
+non-interactive interstitial but plain Chromium a CAPTCHA, so CloakBrowser's
+patches do buy something there. curl_cffi is a strictly worse fit for those
+two paths and a strictly better one everywhere else (feeds, JSON APIs,
+Substack, generic articles: no binary, ~60 MB, no licence, no phone-home).
+YouTube is an account-cookie wall, not a fingerprint wall; a browser does not
+change it.
+
+CloakBrowser costs, from the repo/issues: the binary is proprietary (wrapper
+MIT), ~200 MB, patch set unpublished, non-auditable by licence, built by an
+anonymous six-month-old identity (one committing account, ProtonMail
+contact); the current v148+/v150 builds need a key and do licence validation
++ session heartbeats at launch (exit 78 when the licence server is
+unreachable, #479; an unclean exit strands the single free seat, #477); the
+keyless line is v146 and will not be updated ("not expected to pass current
+Cloudflare Turnstile", maintainer, #503, though it reached FT's origin 3/5
+and cleared WSJ 5/5 in our test); persistent profiles leak memory (#346);
+docker restart hazard with a stale X lock (#283); headed mode via Xvfb is
+recommended for aggressive sites. Prices: free (1 session, GitHub sign-in),
+$19-$699/mo. Our internal use is permitted by the binary licence.
+
+Decision: curl_cffi stays the fetcher. If FT/WSJ article bodies are wanted
+before a licensed API exists, the shape is an opt-in, disposable sidecar,
+never a change to fetch.py: a separate compose service (image
+`cloakhq/cloakbrowser`, `cloakserve` CDP on an internal port, keyless v146
+pinned, `CLOAKBROWSER_AUTO_UPDATE=false`, mem 1 GB, cpus 1.0, no DB access);
+Vault connects over CDP only for `site in (ft, wsj)` article fetches, injects
+that site's cookies into a fresh context per cycle, one page at a time, at
+most a few articles per cycle, hard timeouts, and falls back to the teaser
+path on any failure. Untested until real subscriber cookies exist: whether
+the entitlement layer then returns full text. Not built.
+
 ## 11. Out of scope (recorded, not built)
 
 - Full text for FT and WSJ from the server. Verified walls (Cloudflare
