@@ -813,6 +813,26 @@ without a cleared context Cloudflare's challenge is hit-or-miss per
 navigation (retries handle it). WSJ: DataDome cleared instantly with the
 harvested cookies; body length then depends on the account's entitlement.
 
+## 10d. Sign in from the page (2026-08-18, built)
+
+The Sign-ins card has a "Sign in" button for FT and WSJ. It opens a modal
+with a live view of the CloakBrowser sidecar: `graph/signin.py` starts a
+session (async Playwright over CDP, same fingerprint seed as the fetcher, a
+page on the site's login URL, viewport 1280x800), the frontend polls
+`GET /api/signin/{id}` (base64 JPEG + url/title) about every 700 ms and
+forwards clicks, double clicks, typed text (buffered 150 ms), special keys,
+paste and scroll through `POST /api/signin/{id}/event` (per-session
+asyncio.Lock keeps the order; key allowlist; `goto` only to the site's
+hosts). "Done" (`POST /api/signin/{id}/finish`) reads the context's cookies
+for the site's hosts, stores them as the credential only when the session
+cookie is present (FT `FTSession_s`/`FTSession`; WSJ `DJSESSION`/`sso`/
+`djcs_session`), requeues blocked links, clears the site's `last_error`, and
+closes the page. Sessions expire after 20 minutes idle, one per site;
+`DELETE` cancels; 503 "The browser is not running." when the sidecar is not
+configured. Verified locally: the WSJ SSO page rendered in the modal, a click
+focused its email field and typed text appeared in the next frame. Cookies
+born this way come from the server's own IP and browser profile.
+
 ## 11. Out of scope (recorded, not built)
 
 - Full text for FT and WSJ from the server. Verified walls (Cloudflare

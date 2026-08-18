@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ClipboardEvent, FormEvent, KeyboardEvent, MouseEvent, WheelEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -8,16 +8,25 @@ import {
   addSource,
   apiFetch,
   ApiError,
+  cancelSignIn,
   deleteCredential,
+  dropSignIn,
+  finishSignIn,
   removeSource,
   resolveSource,
   retryLink,
   saveCredential,
   searchTickers,
+  signInEvent,
+  signInFrame,
+  startSignIn,
   testCredential,
   type CredentialRow,
   type LinkRow,
   type Resolution,
+  type SignInEventBody,
+  type SignInFrame,
+  type SignInSession,
   type SourceItem,
   type SourcesResponse,
   type UploadResponse,
@@ -671,6 +680,406 @@ function LinksCard({ links }: { links: LinkRow[] }) {
 
 // ─── Sign-ins ────────────────────────────────────────────────
 
+/** Sites with a browser sign-in in the sidecar (spec v4 §10c). */
+const signInTitles: Record<string, string> = {
+  ft: "Sign in to Financial Times",
+  wsj: "Sign in to Wall Street Journal",
+};
+
+/** Keys the API takes one at a time. Everything printable goes as text. */
+const specialKeys = new Set([
+  "Enter",
+  "Backspace",
+  "Tab",
+  "Escape",
+  "Delete",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+]);
+
+/** Select all, copy, cut: sent as the API writes them ("Meta+a"). Paste is not
+ *  here: the browser default runs and onPaste forwards the text itself. */
+const comboKeys = new Set(["a", "c", "x"]);
+const onMac = navigator.userAgent.includes("Mac");
+const comboName = onMac ? "Meta" : "Control";
+
+const frameMs = 700; // one live frame per poll
+const typeMs = 150; // characters batch into one type event
+const scrollMs = 120; // one wheel event at most
+const typeMax = 500; // the API caps text at 500 characters
+const frameFails = 4; // failed polls before the view is called stale
+
+/**
+ * Live view of a sign-in session in the sidecar browser. Frames are polled
+ * one at a time (setTimeout chaining, so a slow answer never queues up) and
+ * input is forwarded to the remote page.
+ */
+function SignInModal({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session: SignInSession;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [frame, setFrame] = useState<SignInFrame | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [stalled, setStalled] = useState(false);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const ended = useRef(false);
+  const opened = useRef(false); // a poll was answered, so the session is real
+  const fails = useRef(0);
+  const typed = useRef("");
+  const typeTimer = useRef<number | null>(null);
+  const scrolled = useRef(0);
+  const scrollTimer = useRef<number | null>(null);
+  // One chain for every forwarded input: two fetches in the same tick arrive
+  // in either order, and typed text has to land before the Enter that submits
+  // it.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const end = useCallback(
+    (message?: string) => {
+      if (ended.current) return;
+      ended.current = true;
+      if (message) toast.error(message);
+      onClose();
+    },
+    [onClose],
+  );
+
+  /** Back to the live view: a button press leaves focus on the button, and
+   *  keys only reach the remote page from the layer. */
+  const focusLayer = useCallback(() => {
+    layerRef.current?.focus();
+  }, []);
+
+  const send = useCallback(
+    (ev: SignInEventBody) => {
+      queue.current = queue.current
+        .then(() => (ended.current ? null : signInEvent(session.id, ev)))
+        .then(
+          () => {
+            if (!ended.current) setNote(null);
+          },
+          (err: unknown) => {
+            if (ended.current) return;
+            if (err instanceof ApiError && err.status === 404) {
+              end("That sign-in ended.");
+              return;
+            }
+            if (err instanceof ApiError && err.status === 409) {
+              setNote("The page did not respond. Try again.");
+            } else if (err instanceof ApiError) {
+              setNote(err.detail);
+            } else {
+              setNote("That did not reach the page. Try again.");
+            }
+            focusLayer();
+          },
+        );
+    },
+    [session.id, end, focusLayer],
+  );
+
+  // Poll a frame, then wait 700 ms from the answer before asking again.
+  useEffect(() => {
+    let stopped = false;
+    let timer: number | null = null;
+
+    const again = () => {
+      timer = window.setTimeout(tick, frameMs);
+    };
+
+    const tick = () => {
+      timer = null;
+      if (stopped) return;
+      if (document.hidden) {
+        again(); // the tab is in the background; skip the frame, keep the loop
+        return;
+      }
+      void signInFrame(session.id).then(
+        (next) => {
+          if (stopped) return;
+          opened.current = true;
+          if (fails.current > 0) {
+            fails.current = 0;
+            setStalled(false);
+          }
+          setFrame(next);
+          again();
+        },
+        (err: unknown) => {
+          if (stopped) return;
+          opened.current = true;
+          if (err instanceof ApiError && err.status === 404) {
+            end("That sign-in ended.");
+            return;
+          }
+          // the last good frame stays on screen, so say when it went still
+          fails.current += 1;
+          if (fails.current >= frameFails) setStalled(true);
+          again();
+        },
+      );
+    };
+
+    tick();
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [session.id, end]);
+
+  // The view takes the keyboard as soon as it opens.
+  useEffect(() => {
+    focusLayer();
+  }, [focusLayer]);
+
+  // The page behind must not scroll under the modal.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (typeTimer.current !== null) window.clearTimeout(typeTimer.current);
+      if (scrollTimer.current !== null) window.clearTimeout(scrollTimer.current);
+    },
+    [],
+  );
+
+  // Leaving the view or closing the tab ends the session: nothing sweeps the
+  // sidecar between requests, so an abandoned login page would sit in the
+  // shared browser for twenty minutes. The `opened` guard keeps the dev
+  // double-mount from ending a session whose first poll is still in flight.
+  useEffect(() => {
+    const drop = () => {
+      if (ended.current || !opened.current) return;
+      ended.current = true;
+      dropSignIn(session.id);
+    };
+    window.addEventListener("pagehide", drop);
+    return () => {
+      window.removeEventListener("pagehide", drop);
+      drop();
+    };
+  }, [session.id]);
+
+  const flushTyped = useCallback(() => {
+    if (typeTimer.current !== null) {
+      window.clearTimeout(typeTimer.current);
+      typeTimer.current = null;
+    }
+    const text = typed.current;
+    typed.current = "";
+    if (text) send({ kind: "type", text });
+  }, [send]);
+
+  // Characters gather for 150 ms so typing reads as words, not keystrokes.
+  const queueChar = (ch: string) => {
+    typed.current += ch;
+    if (typed.current.length >= typeMax) {
+      flushTyped();
+      return;
+    }
+    if (typeTimer.current !== null) window.clearTimeout(typeTimer.current);
+    typeTimer.current = window.setTimeout(() => {
+      typeTimer.current = null;
+      flushTyped();
+    }, typeMs);
+  };
+
+  // Scaled to the remote viewport and kept inside it: a click on the far edge
+  // rounds up to the width itself, which the API rejects.
+  const point = (e: MouseEvent<HTMLDivElement>): { x: number; y: number } | null => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    const on = (value: number, size: number) =>
+      Math.min(size - 1, Math.max(0, Math.round(value)));
+    return {
+      x: on(((e.clientX - rect.left) / rect.width) * session.width, session.width),
+      y: on(((e.clientY - rect.top) / rect.height) * session.height, session.height),
+    };
+  };
+
+  const onClick = (e: MouseEvent<HTMLDivElement>) => {
+    const at = point(e);
+    if (!at) return;
+    flushTyped();
+    send({ kind: "click", ...at });
+  };
+
+  const onDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
+    const at = point(e);
+    if (!at) return;
+    flushTyped();
+    send({ kind: "dblclick", ...at });
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const key = e.key;
+    const lower = key.toLowerCase();
+    if ((onMac ? e.metaKey : e.ctrlKey) && comboKeys.has(lower)) {
+      e.preventDefault();
+      flushTyped();
+      send({ kind: "key", key: `${comboName}+${lower}` });
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (specialKeys.has(key)) {
+      e.preventDefault();
+      flushTyped();
+      send({ kind: "key", key });
+      return;
+    }
+    if (key.length === 1) {
+      e.preventDefault();
+      queueChar(key);
+    }
+  };
+
+  const onPaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text");
+    if (!text) return;
+    flushTyped();
+    send({ kind: "type", text: text.slice(0, typeMax) });
+  };
+
+  const onWheel = (e: WheelEvent<HTMLDivElement>) => {
+    scrolled.current += e.deltaY;
+    if (scrollTimer.current !== null) return;
+    scrollTimer.current = window.setTimeout(() => {
+      scrollTimer.current = null;
+      const dy = Math.round(scrolled.current);
+      scrolled.current = 0;
+      if (dy !== 0) send({ kind: "scroll", dy });
+    }, scrollMs);
+  };
+
+  const finish = useMutation({
+    mutationFn: () => finishSignIn(session.id),
+    onSuccess: (res) => {
+      if (res.ok && res.signed_in) {
+        ended.current = true;
+        toast.success("Signed in. Cookies saved.");
+        onSaved();
+        onClose();
+        return;
+      }
+      // the modal stays open to finish signing in, so the keyboard goes back
+      // to the live view instead of sitting on the Done button
+      setNote(res.message);
+      focusLayer();
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 404) {
+        end("That sign-in ended.");
+        return;
+      }
+      toast.error(errorDetail(err));
+      focusLayer();
+    },
+  });
+
+  const cancel = () => {
+    ended.current = true;
+    void cancelSignIn(session.id).catch(() => undefined);
+    onClose();
+  };
+
+  const title = signInTitles[session.site] ?? "Sign in";
+  const address = frame?.url ?? session.url;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/85 p-4 sm:p-6"
+    >
+      <div className="w-full max-w-5xl rounded-lg border border-border bg-card">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-[13px] font-medium text-foreground">{title}</h2>
+            <p className="mt-0.5 text-muted-foreground">
+              Sign in as you normally would. When the site shows you signed in, press Done.
+            </p>
+          </div>
+          <span
+            className="max-w-full min-w-0 truncate font-mono text-xs text-muted-foreground"
+            title={address}
+          >
+            {address}
+          </span>
+        </div>
+
+        <div className="space-y-2 p-4">
+          <div
+            className="relative w-full overflow-hidden rounded-md border border-border bg-muted"
+            style={{ aspectRatio: `${session.width} / ${session.height}` }}
+          >
+            {frame ? (
+              <img
+                src={`data:image/jpeg;base64,${frame.image}`}
+                alt=""
+                draggable={false}
+                className={cn(
+                  "h-full w-full select-none object-contain transition-opacity",
+                  stalled && "opacity-40",
+                )}
+              />
+            ) : (
+              <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Spinner />
+                Opening the page.
+              </span>
+            )}
+            <div
+              ref={layerRef}
+              tabIndex={0}
+              autoFocus
+              onClick={onClick}
+              onDoubleClick={onDoubleClick}
+              onKeyDown={onKeyDown}
+              onPaste={onPaste}
+              onWheel={onWheel}
+              className="absolute inset-0 outline-none ring-inset focus-visible:ring-2 focus-visible:ring-accent/40"
+            />
+          </div>
+
+          {stalled && (
+            <p className="text-warn">
+              The live view stopped updating. Close and start the sign-in again.
+            </p>
+          )}
+          {note && <p className="text-warn">{note}</p>}
+        </div>
+
+        <div className="flex justify-end gap-1.5 border-t border-border px-4 py-3">
+          <Button variant="ghost" onClick={cancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={finish.isPending} onClick={() => finish.mutate()}>
+            {finish.isPending && <Spinner className="size-3.5" />}
+            Done
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function credentialBadge(row: CredentialRow): { label: string; tone: BadgeTone } {
   if (!row.set) return { label: "not set", tone: "idle" };
   if (row.check_ok === true) return { label: "signed in", tone: "ok" };
@@ -681,12 +1090,35 @@ function credentialBadge(row: CredentialRow): { label: string; tone: BadgeTone }
 function CredentialItem({ row }: { row: CredentialRow }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
+  const [session, setSession] = useState<SignInSession | null>(null);
   const badge = credentialBadge(row);
+  const canSignIn = row.site in signInTitles;
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["sources"] });
     void queryClient.invalidateQueries({ queryKey: ["status"] });
   };
+
+  const closeSignIn = useCallback(() => setSession(null), []);
+
+  // the same refresh as a pasted sign-in: the finish requeued blocked links
+  // and cleared the source errors, and both are counted on the dashboard
+  const savedSignIn = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["sources"] });
+    void queryClient.invalidateQueries({ queryKey: ["status"] });
+  }, [queryClient]);
+
+  const open = useMutation({
+    mutationFn: () => startSignIn(row.site),
+    onSuccess: (res) => setSession(res),
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 503) {
+        toast.error("The browser is not running.");
+        return;
+      }
+      toast.error(errorDetail(err));
+    },
+  });
 
   const save = useMutation({
     mutationFn: () => saveCredential(row.site, value.trim()),
@@ -718,7 +1150,7 @@ function CredentialItem({ row }: { row: CredentialRow }) {
     onError: (err) => toast.error(errorDetail(err)),
   });
 
-  const busy = save.isPending || check.isPending || drop.isPending;
+  const busy = save.isPending || check.isPending || drop.isPending || open.isPending;
 
   return (
     <li className="border-b border-border px-4 py-3 last:border-0">
@@ -772,11 +1204,21 @@ function CredentialItem({ row }: { row: CredentialRow }) {
             {check.isPending && <Spinner className="size-3.5" />}
             Test
           </Button>
+          {canSignIn && (
+            <Button disabled={busy} onClick={() => open.mutate()}>
+              {open.isPending && <Spinner className="size-3.5" />}
+              Sign in
+            </Button>
+          )}
           <Button variant="ghost" disabled={busy || !row.set} onClick={() => drop.mutate()}>
             Remove
           </Button>
         </div>
       </div>
+
+      {session && (
+        <SignInModal session={session} onClose={closeSignIn} onSaved={savedSignIn} />
+      )}
     </li>
   );
 }

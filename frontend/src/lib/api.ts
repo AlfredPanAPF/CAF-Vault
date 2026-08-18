@@ -599,6 +599,90 @@ export function testCredential(site: string): Promise<{ ok: boolean; message: st
   return apiFetch(`/api/credentials/${site}/test`, { method: "POST" });
 }
 
+// ─── /api/signin ─────────────────────────────────────────────
+
+/** A live sign-in session in the sidecar browser (spec v4 §10c). One per
+ *  site, held in the web process, closed on Done or Cancel. */
+export interface SignInSession {
+  id: string;
+  site: string;
+  url: string;
+  title: string;
+  width: number;
+  height: number;
+  /** True when a session for the site was already open. */
+  resumed: boolean;
+}
+
+/** One polled frame: the page viewport as a base64 JPEG. */
+export interface SignInFrame {
+  id: string;
+  site: string;
+  url: string;
+  title: string;
+  width: number;
+  height: number;
+  image: string;
+}
+
+/** An input forwarded to the remote page. Coordinates are viewport pixels. */
+export interface SignInEventBody {
+  kind: "click" | "dblclick" | "type" | "key" | "scroll" | "goto";
+  x?: number;
+  y?: number;
+  text?: string;
+  key?: string;
+  dy?: number;
+  url?: string;
+}
+
+export interface SignInEventResult {
+  ok: boolean;
+  url: string;
+}
+
+export interface SignInFinish {
+  ok: boolean;
+  cookies: number;
+  /** The site's session cookie was found, so the credential was stored. */
+  signed_in: boolean;
+  message: string;
+}
+
+export function startSignIn(site: string): Promise<SignInSession> {
+  return apiFetch(`/api/signin/${site}`, { method: "POST" });
+}
+
+export function signInFrame(id: string): Promise<SignInFrame> {
+  return apiFetch(`/api/signin/${id}`);
+}
+
+export function signInEvent(id: string, ev: SignInEventBody): Promise<SignInEventResult> {
+  return apiFetch(`/api/signin/${id}/event`, {
+    method: "POST",
+    body: JSON.stringify(ev),
+  });
+}
+
+export function finishSignIn(id: string): Promise<SignInFinish> {
+  return apiFetch(`/api/signin/${id}/finish`, { method: "POST" });
+}
+
+export function cancelSignIn(id: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/signin/${id}`, { method: "DELETE" });
+}
+
+/**
+ * End a session on the way out: leaving the view or closing the tab must not
+ * leave a login page open in the shared browser. `keepalive` lets the request
+ * outlive the document, and nothing waits on the answer.
+ */
+export function dropSignIn(id: string): void {
+  void fetch(`${base}/api/signin/${id}`, { method: "DELETE", keepalive: true }).catch(
+    () => undefined,
+  );
+}
+
 // ─── /api/upload ─────────────────────────────────────────────
 
 export interface UploadResult {

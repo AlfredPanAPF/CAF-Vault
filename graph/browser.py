@@ -85,6 +85,12 @@ def _cdp_url(site: str | None) -> str:
     return f"{base_url()}?fingerprint={seed}&timezone={TIMEZONE}&locale={LOCALE}"
 
 
+def cdp_url(site: str | None) -> str:
+    """The sidecar address for a site, for the other module that dials it
+    (graph.signin): same seed, so a sign-in and a fetch look like one machine."""
+    return _cdp_url(site)
+
+
 def playwright_cookies(cookies: list[dict], site_hosts: tuple[str, ...]) -> list[dict]:
     """graph.credentials.parse_cookies() rows -> Playwright add_cookies dicts.
     Rows without a domain get the site's first host, dot-prefixed."""

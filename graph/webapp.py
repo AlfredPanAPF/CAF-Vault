@@ -25,7 +25,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
 from . import (artifacts, config, credentials, db, fetch, probes, router,
-               staleness, watchlist)
+               signin, staleness, watchlist)
 from .connectors import links, manual
 from .pipeline import adjudicate, resolve
 
@@ -341,6 +341,15 @@ def credential_sites(con):
     credentials.py)."""
     return {r["site"] for r in con.execute("select site from credential")}
 
+
+def credential_saved(con, site):
+    """What a saved sign-in unblocks, whether it was pasted or signed into in
+    the browser (§7): the site's blocked links go back in the queue and its
+    sources drop the error that was waiting on it. The caller commits."""
+    links.requeue_blocked(con, site)
+    con.execute("update source set last_error=null, last_error_at=null "
+                "where config->>'site' = %s", (site,))
+
 FAILED_EVENTS_SQL = """
 select e.event_id, e.connector,
        coalesce(e.meta->>'title', e.meta->>'filename') as title,
@@ -393,6 +402,16 @@ class SourceBody(BaseModel):
 class CredentialBody(BaseModel):
     value: str
     note: str | None = None
+
+
+class SignInEventBody(BaseModel):
+    kind: str
+    x: int | None = None
+    y: int | None = None
+    text: str | None = None
+    key: str | None = None
+    dy: int | None = None
+    url: str | None = None
 
 
 class ErDecisionBody(BaseModel):
@@ -1268,9 +1287,7 @@ def create_app():
         except credentials.InvalidCredential as e:
             raise HTTPException(400, str(e)) from None
         # the sign-in is what those rows were waiting for
-        links.requeue_blocked(con, site)
-        con.execute("update source set last_error=null, last_error_at=null "
-                    "where config->>'site' = %s", (site,))
+        credential_saved(con, site)
         con.commit()
         return {"ok": True, "site": site, "set": True}
 
@@ -1290,6 +1307,33 @@ def create_app():
         credentials.record_check(con, site, ok, message)
         con.commit()
         return {"ok": ok, "message": message}
+
+    # ---------------------------------------------- sign in from the browser
+    #
+    # These five drive one page in the sidecar (graph/signin.py). They are
+    # async because the Playwright objects belong to the event loop that made
+    # them, and the sessions live in this process: one uvicorn worker, at most
+    # one session per site.
+
+    @app.post("/api/signin/{site}")
+    async def api_signin_start(site: str):
+        return await signin.start(site)
+
+    @app.get("/api/signin/{session_id}")
+    async def api_signin_frame(session_id: str):
+        return await signin.frame(session_id)
+
+    @app.post("/api/signin/{session_id}/event")
+    async def api_signin_event(session_id: str, body: SignInEventBody):
+        return await signin.event(session_id, body.model_dump())
+
+    @app.post("/api/signin/{session_id}/finish")
+    async def api_signin_finish(session_id: str, con=Depends(get_con)):
+        return await signin.finish(session_id, con)
+
+    @app.delete("/api/signin/{session_id}")
+    async def api_signin_close(session_id: str):
+        return await signin.close(session_id)
 
     @app.post("/api/upload")
     def api_upload(files: list[UploadFile] = File(...), con=Depends(get_con)):
