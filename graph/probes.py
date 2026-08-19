@@ -15,8 +15,21 @@ FT's own session service (`session-next.ft.com/<FTSession_s>`, no challenge)
 whether the cookie is valid, then tries one article; a live session behind a
 wall is reported as exactly that, so the operator does not re-paste a cookie
 that is fine.
+
+Substack subscriptions are per publication, so no post this module could pick
+proves anything about the account: the analyst pastes a link to a paid post
+from a publication they subscribe to (the Sign-ins card's link box), and the
+probe fetches that post with the stored cookie and once more without it. The
+proof is that the cookie unlocks text an anonymous reader does not get; when
+it does not, Substack's reader API (401 without a live session) tells a dead
+session from a live one that simply does not subscribe there. A link that
+cannot test anything (missing, not a Substack post, a free post, nothing at
+that address, a post that reads the same without the sign-in) raises BadLink,
+and the endpoint answers 400 without recording a check, since nothing was
+learned about the sign-in.
 """
 import json
+from urllib.parse import urlsplit, urlunsplit
 
 from . import credentials, fetch, router
 from .connectors import manual, rss
@@ -35,6 +48,26 @@ FEEDS = {"ft": "https://www.ft.com/rss/home/international",
          "wsj": "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain"}
 FT_SESSION = "https://session-next.ft.com/"
 READER_API = "https://substack.com/api/v1/reader/posts?limit=1"
+
+# Substack: what the link box must hold, and what a live session that does not
+# subscribe to the pasted publication reads as
+NEEDS_LINK = "Paste a link to a paid post you subscribe to."
+NOT_A_POST = ("That is not a link to a Substack post. Paste a link to a paid "
+              "post you subscribe to.")
+FREE_POST = ("That post is free to read, so it cannot show whether the sign-in "
+             "works. Paste a link to a paid post you subscribe to.")
+NO_POST = "Substack has no post at that link. Check the link and try again."
+UNREACHABLE = "Could not reach {host} to check the link. Try again in a moment."
+NOT_SUBSCRIBED = ("Signed in, but {publication} still sent the preview: this "
+                  "account has no paid subscription there. Test with a post "
+                  "from a publication it pays for.")
+SAME_WITHOUT = ("That post reads the same without the sign-in, so it cannot show "
+                "whether the sign-in works. Paste a link to a post with text "
+                "behind the paywall.")
+
+
+class BadLink(ValueError):
+    """The pasted link cannot test the sign-in; str() says why."""
 
 
 def failed(reason) -> tuple[bool, str]:
@@ -91,63 +124,129 @@ def _article_probe(con, site: str) -> tuple[bool, str]:
     return True, OK
 
 
-def substack_origins(con) -> list[str]:
-    """Publication origins of the Substack sources we already follow."""
-    return [r["origin"] for r in con.execute(
-        "select distinct config->'substack'->>'origin' as origin from source "
-        "where connector='rss' and status <> 'dropped' "
-        "and config->'substack'->>'origin' is not null")]
+def substack_post_ref(url: str, con=None) -> tuple[str, str]:
+    """A pasted Substack post link -> (publication origin, slug). Share links
+    (`open.substack.com/pub/<pub>/p/<slug>`) are rewritten onto the
+    publication; a custom domain is recognised the way the router does it
+    (§4 rule 20, one small fetch). Raises BadLink when it is not a post."""
+    text = (url or "").strip()
+    if not text:
+        raise BadLink(NEEDS_LINK)
+    if "://" not in text:
+        text = "https://" + text
+    try:
+        # urlsplit itself refuses some pastes (an unclosed bracket, a host
+        # with characters that fail NFKC normalisation): not a post either
+        text = router.substack_share(text)
+        parts = urlsplit(text)
+    except ValueError:
+        raise BadLink(NOT_A_POST) from None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise BadLink(NOT_A_POST)
+    slug = rss.slug_of(text)
+    if not slug:
+        raise BadLink(NOT_A_POST)
+    # the publication is reached over https whatever was pasted, and only on a
+    # public host with a readable port: the fetch guard says no to the rest
+    # here, before a fetch could turn a typo into a recorded failure
+    site = urlunsplit(("https", parts.netloc, "", "", ""))
+    try:
+        fetch.guard_url(site)
+    except fetch.BlockedAddress:
+        raise BadLink(NOT_A_POST) from None
+    # the router's own flag tells a host that is not a Substack from one that
+    # did not answer
+    state = {"failed": False}
+    origin = router.substack_origin(site, con=con, state=state)
+    if not origin:
+        if state["failed"]:
+            raise BadLink(UNREACHABLE.format(host=parts.hostname))
+        raise BadLink(NOT_A_POST)
+    return origin, slug
 
 
-def _substack_probe(con) -> tuple[bool, str]:
-    """The reader API answers 200 with JSON for a signed-in session; if it
-    does not, fall back to a paid post from a publication we follow."""
-    r = fetch.get(READER_API, site="substack", con=con, timeout=TIMEOUT,
-                  allow_wall=True, headers={"Accept": "application/json"})
-    if r.ok:
+def _substack_session_live(con) -> bool | None:
+    """True/False from Substack's reader API, which answers 200 JSON for a
+    signed-in session and 401 for anyone else; None when it did not say (a
+    403 is left there too: from a server that is an edge block, not a verdict
+    on the cookie)."""
+    try:
+        r = fetch.get(READER_API, site="substack", con=con, timeout=TIMEOUT,
+                      allow_wall=True, headers={"Accept": "application/json"})
+    except Exception:
+        return None
+    if r.status == 200:
         try:
             json.loads(r.text)
-            return True, OK
+            return True
         except ValueError:
-            pass
-    for origin in substack_origins(con):
-        for post in router.substack_archive(origin, con=con, limit=5):
-            if (post.get("audience") or "everyone") == "everyone":
-                continue
-            slug = post.get("slug") or rss.slug_of(post.get("canonical_url") or "")
-            if not slug:
-                continue
-            # raises SignInNeeded when the paid post comes back as a preview
-            rss.substack_post(con, origin, slug)
-            return True, OK
-    # both tails are the same outcome: the sign-in could not be proven. §7 fixes
-    # the wording as "Sign-in failed: <reason>.", and the reason says what to
-    # add rather than blaming the pasted cookie.
-    if not substack_origins(con):
-        return failed(f"the reader API answered {r.status} and there is no "
-                      "Substack source yet to test a paid post against")
-    return failed(f"the reader API answered {r.status} and no followed "
-                  "publication has a paid post to test with")
+            return None
+    if r.status == 401:
+        return False
+    return None
 
 
+def _substack_probe(con, url) -> tuple[bool, str]:
+    """Fetch the pasted paid post with the stored cookie and once more without
+    it. The proof of the sign-in is that the cookie unlocks text an anonymous
+    reader does not get: a body that looks whole proves nothing on its own,
+    since Substack hands some paid posts out whole (a discussion thread whose
+    paid part is the comments, a post whose paywalled tail is a few links) and
+    its word count cannot tell those from an unlocked post. When the cookie
+    unlocked nothing, the reader API says whether the session itself is dead,
+    and the body's length against the post's word count whether the account is
+    simply not subscribed here or the post has no text behind its wall."""
+    origin, slug = substack_post_ref(url, con=con)
+    host = urlsplit(origin).hostname or origin
+    try:
+        signed = rss.substack_post_json(con, origin, slug)
+    except RuntimeError as e:
+        if str(e) == "HTTP 404":
+            raise BadLink(NO_POST) from None
+        raise
+    if (signed.get("audience") or "everyone") == "everyone":
+        raise BadLink(FREE_POST)
+    try:
+        anonymous = rss.substack_post_json(None, origin, slug, anonymous=True)
+    except Exception:
+        # the second fetch is the comparison; without it nothing was learned
+        raise BadLink(UNREACHABLE.format(host=host)) from None
+    if rss.html_words(signed.get("body_html") or "") > \
+            rss.html_words(anonymous.get("body_html") or ""):
+        return True, OK
+    session = _substack_session_live(con)
+    if session is False:
+        return failed("Substack says this session is no longer valid; sign in "
+                      "again and paste a fresh substack.sid")
+    if rss.substack_preview(signed):
+        if session is True:
+            return False, NOT_SUBSCRIBED.format(publication=host)
+        return failed("the post came back as a preview")
+    raise BadLink(SAME_WITHOUT)
+
+
+# every probe takes (con, url); only Substack reads the link
 PROBES = {
-    "ft": lambda con: _article_probe(con, "ft"),
-    "wsj": lambda con: _article_probe(con, "wsj"),
+    "ft": lambda con, url: _article_probe(con, "ft"),
+    "wsj": lambda con, url: _article_probe(con, "wsj"),
     "substack": _substack_probe,
-    "x": lambda con: x_connector.check(con),
-    "youtube": lambda con: youtube_connector.check(con),
+    "x": lambda con, url: x_connector.check(con),
+    "youtube": lambda con, url: youtube_connector.check(con),
 }
 
 
-def run(con, site: str) -> tuple[bool, str]:
-    """Check one site's sign-in. Never raises."""
+def run(con, site: str, url: str | None = None) -> tuple[bool, str]:
+    """Check one site's sign-in, against the pasted link where the site takes
+    one. Never raises, except BadLink for a link that cannot test anything."""
     probe = PROBES.get(site)
     if probe is None:
         return failed("nothing here checks that site")
     if not credentials.is_set(con, site):
         return False, "Nothing is saved for this sign-in yet."
     try:
-        return probe(con)
+        return probe(con, url)
+    except BadLink:
+        raise
     except fetch.SignInNeeded as e:
         return failed(e.detail or "the site asked for a sign-in")
     except Exception as e:

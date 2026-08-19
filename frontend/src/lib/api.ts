@@ -507,6 +507,9 @@ export interface CredentialRow {
   check_ok: boolean | null;
   check_message: string | null;
   help: string;
+  /** Placeholder for the link the Test button runs against (Substack: a
+   *  paid post the account subscribes to); null when the probe takes none. */
+  test_link: string | null;
 }
 
 export interface SourcesResponse {
@@ -595,8 +598,14 @@ export function deleteCredential(site: string): Promise<{ ok: boolean }> {
   return apiFetch(`/api/credentials/${site}`, { method: "DELETE" });
 }
 
-export function testCredential(site: string): Promise<{ ok: boolean; message: string }> {
-  return apiFetch(`/api/credentials/${site}/test`, { method: "POST" });
+export function testCredential(
+  site: string,
+  url?: string,
+): Promise<{ ok: boolean; message: string }> {
+  return apiFetch(`/api/credentials/${site}/test`, {
+    method: "POST",
+    ...(url ? { body: JSON.stringify({ url }) } : {}),
+  });
 }
 
 // ─── /api/signin ─────────────────────────────────────────────

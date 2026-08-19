@@ -326,6 +326,66 @@ def test_rss_substack_preview_counts_as_blocked(con, monkeypatch):
     assert source_row(con, "Paid Letter 2")["last_error"] == "Sign-in needed"
 
 
+def test_rss_substack_long_preview_is_still_a_preview(con, monkeypatch):
+    """Substack sends the whole post's `wordcount` with the preview: a body
+    well short of it is the preview however long it runs (a Pragmatic
+    Engineer preview is 4,500 words of a 10,000-word post), and a body that
+    reaches it is the post."""
+    con.execute(
+        "insert into source (name, connector, url, status, config) values "
+        "('Paid Letter 3', 'rss', 'https://three.example.com/feed', 'active', %s)",
+        (Jsonb({"site": "substack",
+                "substack": {"origin": "https://three.example.com"}}),))
+    long_preview = "<p>" + ("A generous free preview of the paid post. " * 400) + "</p>"
+
+    def fake_get(url, **kw):
+        if url.endswith("/feed"):
+            return Resp(RSS_WITH_CONTENT.replace("letter.example.com",
+                                                 "three.example.com"))
+        return Resp(json.dumps({"title": "The paid post", "audience": "only_paid",
+                                "body_html": long_preview, "wordcount": 10_000}))
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    out = rss.poll(con)
+    assert out["blocked"] == 1
+    assert source_row(con, "Paid Letter 3")["last_error"] == "Sign-in needed"
+
+    # the same length with a matching wordcount is the post itself; a free
+    # post is never a preview; without a wordcount the length rule decides
+    words = rss.html_words(long_preview)
+    assert rss.substack_preview({"audience": "only_paid", "body_html": long_preview,
+                                 "wordcount": words}) is False
+    assert rss.substack_preview({"audience": "only_paid", "body_html": long_preview,
+                                 "wordcount": words * 2}) is True
+    assert rss.substack_preview({"audience": "everyone", "body_html": "<p>Hi</p>",
+                                 "wordcount": 5000}) is False
+    assert rss.substack_preview({"audience": "only_paid", "body_html": "<p>Hi</p>"}) is True
+    assert rss.substack_preview({"audience": "only_paid", "body_html": long_preview,
+                                 "wordcount": 0}) is False
+    assert rss.substack_preview({"audience": "only_paid", "body_html": long_preview,
+                                 "wordcount": "n/a"}) is False
+    assert rss.substack_preview({"audience": "only_paid", "body_html": long_preview,
+                                 "wordcount": True}) is False
+    # the count is over every text node, as Substack's is: a complete post
+    # that keeps a third of its words in headings, captions and code must not
+    # read as a preview against the paragraphs-only stored body
+    heavy = ("<h2>" + ("Heading words here. " * 60) + "</h2>"
+             "<p>" + ("Paragraph words here. " * 60) + "</p>"
+             "<figure><figcaption>" + ("Caption words. " * 60) + "</figcaption></figure>"
+             "<pre>" + ("code words " * 60) + "</pre>"
+             "<script>var x = 'not words';</script>")
+    assert rss.html_words(heavy) == 180 + 180 + 120 + 120
+    assert len(rss.html_to_text(heavy).split()) == 180
+    assert rss.substack_preview({"audience": "only_paid", "body_html": heavy,
+                                 "wordcount": 600}) is False
+    assert rss.substack_preview({"audience": "only_paid", "body_html": heavy,
+                                 "wordcount": 1200}) is True
+    # and the post slug never carries the comments tail
+    assert rss.slug_of("https://l.substack.com/p/the-post/comments") == "the-post"
+    assert rss.slug_of("https://l.substack.com/p/the-post/comment/12?x=1") == "the-post"
+    assert rss.slug_of("https://l.substack.com/archive") == ""
+
+
 # ---------------------------------------------------------------- §6.1 youtube
 
 VIDEOS_XML = """<?xml version="1.0" encoding="UTF-8"?>

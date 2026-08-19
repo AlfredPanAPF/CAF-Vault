@@ -17,9 +17,13 @@ SITES = {
         "help": "Paste a cookies.txt export for wsj.com from a signed-in browser.",
     },
     "substack": {
-        # §3.1 fixes this string; `set()` below also takes a bare substack.sid
+        # §3.1 fixes the help string; `set()` below also takes a bare
+        # substack.sid. Subscriptions are per publication, so the Test button
+        # asks for a link to a paid post the account subscribes to (probes.py)
+        # instead of choosing one; `test_link` is the link box's placeholder.
         "label": "Substack", "kind": "cookies",
         "help": "Paste a cookies.txt export for substack.com. Paid posts need it.",
+        "test_link": "Link to a paid post you subscribe to",
     },
     "x": {
         "label": "X", "kind": "bearer",
@@ -231,7 +235,8 @@ def status(con) -> list[dict]:
         r = rows.get(site)
         out.append({
             "site": site, "label": spec["label"], "kind": spec["kind"],
-            "help": spec["help"], "set": r is not None,
+            "help": spec["help"], "test_link": spec.get("test_link"),
+            "set": r is not None,
             "updated_at": _iso(r["updated_at"]) if r else None,
             "checked_at": _iso(r["checked_at"]) if r else None,
             "check_ok": r["check_ok"] if r else None,

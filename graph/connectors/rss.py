@@ -27,6 +27,7 @@ from html import unescape
 from urllib.parse import urlsplit
 
 import requests
+from bs4 import BeautifulSoup
 
 from .. import credentials, envelope, fetch, router
 from .manual import extract_article, html_to_text
@@ -35,6 +36,9 @@ from .podcast import HEADERS  # browser UA; many sites 403 the requests default
 MAX_PAGE_BYTES = 2_000_000
 THIN_CHARS = 400
 SUBSTACK_FULL_CHARS = 1500   # shorter than this and a paid post is a preview
+# the post JSON carries the whole post's `wordcount` even when body_html is
+# the free preview: a body this far short of it is the preview
+SUBSTACK_PREVIEW_RATIO = 0.8
 # sites whose article pages no server can reach (Cloudflare on ft.com, DataDome
 # on wsj.com, both at the edge, cookies or not — spec §0 and §11). A wall there
 # is permanent, so the feed's teaser is the document, not a reason to skip.
@@ -158,12 +162,46 @@ def _feed_text(url: str, site: str | None, con=None) -> str:
     return fetch_page(url)
 
 
-def substack_post(con, origin: str, slug: str) -> dict:
-    """`<origin>/api/v1/posts/<slug>` with the Substack cookie ->
-    {title, published, body, audience}. A paid post that comes back as a
-    preview raises SignInNeeded (spec §3.2)."""
+def html_words(html: str) -> int:
+    """Words in every text node of a fragment: headings, captions, code and
+    embeds included, which is what Substack's `wordcount` counts. (The stored
+    body is `html_to_text`, paragraphs only; measured against that a complete
+    post with many headings and figures reads as 70% of its own count.)"""
+    soup = BeautifulSoup(html or "", "lxml")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return len(soup.get_text(" ").split())
+
+
+def substack_preview(data: dict) -> bool:
+    """True when the post JSON is a paid post cut at the paywall. Substack sends
+    the whole post's `wordcount` with the preview too (a Pragmatic Engineer
+    preview runs to 4,500 words of a 10,000-word post), so a body well short of
+    that count is the preview: on real posts truncated bodies land at 0.02-0.77
+    of the count and complete ones at 0.86-1.3. When the count is missing, a
+    body under SUBSTACK_FULL_CHARS is the preview. This tells a cut body from a
+    whole one and nothing more: a paid post whose whole body is four words
+    ("Ask your questions below.", the comments being the paid part) is whole
+    for everyone, so whether the cookie unlocked anything is the probe's
+    question (probes.py compares the body with and without it)."""
+    if (data.get("audience") or "everyone") == "everyone":
+        return False
+    body_html = data.get("body_html") or ""
+    wordcount = data.get("wordcount")
+    if isinstance(wordcount, (int, float)) and not isinstance(wordcount, bool) \
+            and wordcount > 0:
+        return html_words(body_html) < SUBSTACK_PREVIEW_RATIO * wordcount
+    return len(body_html) < SUBSTACK_FULL_CHARS
+
+
+def substack_post_json(con, origin: str, slug: str, anonymous: bool = False) -> dict:
+    """The post JSON from `<origin>/api/v1/posts/<slug>`, fetched with the
+    Substack cookie unless `anonymous` (the probe compares the two). Raises
+    RuntimeError("HTTP <n>") on a non-2xx answer and ValueError when the
+    answer is not a post."""
     url = f"{origin.rstrip('/')}/api/v1/posts/{slug}"
-    r = fetch.get(url, site="substack", con=con, timeout=30, allow_wall=True,
+    r = fetch.get(url, site=None if anonymous else "substack", con=con,
+                  timeout=30, allow_wall=True,
                   headers={"Accept": "application/json"})
     if not r.ok:
         raise RuntimeError(f"HTTP {r.status}")
@@ -171,18 +209,31 @@ def substack_post(con, origin: str, slug: str) -> dict:
         data = json.loads(r.text)
     except ValueError:
         raise ValueError(f"post API did not return JSON ({r.status})") from None
-    body_html = data.get("body_html") or ""
-    audience = data.get("audience") or "everyone"
-    if audience != "everyone" and len(body_html) < SUBSTACK_FULL_CHARS:
+    if not isinstance(data, dict):
+        raise ValueError(f"post API did not return a post ({r.status})")
+    return data
+
+
+def substack_post(con, origin: str, slug: str) -> dict:
+    """`<origin>/api/v1/posts/<slug>` with the Substack cookie ->
+    {title, published, body, audience}. A paid post that comes back as a
+    preview raises SignInNeeded (spec §3.2)."""
+    data = substack_post_json(con, origin, slug)
+    if substack_preview(data):
         raise fetch.SignInNeeded("substack", "paid post returned a preview")
     return {"title": data.get("title") or "",
             "published": date_of(str(data.get("post_date") or "")),
-            "body": html_to_text(body_html), "audience": audience}
+            "body": html_to_text(data.get("body_html") or ""),
+            "audience": data.get("audience") or "everyone"}
 
 
 def slug_of(url: str) -> str:
+    """The post slug in `<origin>/p/<slug>`; the segments Substack hangs off it
+    (`/p/<slug>/comments`, `/p/<slug>/comment/<id>`) are not part of it."""
     path = urlsplit(url).path
-    return path.split("/p/")[-1].strip("/") if "/p/" in path else ""
+    if "/p/" not in path:
+        return ""
+    return path.split("/p/", 1)[1].strip("/").split("/", 1)[0]
 
 
 # ---------------------------------------------------------------- polling

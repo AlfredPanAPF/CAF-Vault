@@ -204,7 +204,8 @@ SITES = {
   "wsj":      {"label": "Wall Street Journal", "kind": "cookies",
                "help": "Paste a cookies.txt export for wsj.com from a signed-in browser."},
   "substack": {"label": "Substack", "kind": "cookies",
-               "help": "Paste a cookies.txt export for substack.com. Paid posts need it."},
+               "help": "Paste a cookies.txt export for substack.com. Paid posts need it.",
+               "test_link": "Link to a paid post you subscribe to"},   # the Test link box's placeholder (§7, §8)
   "x":        {"label": "X", "kind": "bearer",
                "help": "Paste the bearer token from the X developer portal."},
   "youtube":  {"label": "YouTube", "kind": "cookies",
@@ -214,7 +215,7 @@ def get(con, site) -> dict | None            # row or None (value included; inte
 def set(con, site, value, note=None)         # validates format for the kind
 def delete(con, site)
 def cookie_jar(value: str) -> dict[str, str] # Netscape cookies.txt OR "a=b; c=d" header text
-def status(con) -> list[dict]                # per site: label, kind, set, updated_at, checked_at, check_ok, check_message, help
+def status(con) -> list[dict]                # per site: label, kind, set, updated_at, checked_at, check_ok, check_message, help, test_link (None unless the site's Test takes a link)
 def record_check(con, site, ok, message)
 ```
 Format validation on set: cookies must parse to at least one cookie; a
@@ -583,7 +584,7 @@ the same four stages. All four are heuristic (no LLM) and never pause.
     sources:   [{source_id, name, connector, label, site, url, feed_url, status,
                  last_polled, last_error, events, credential: {site, set} | null}],
     links:     [{link_id, url, title, kind, site, status, error, event_id, created_at}]  // newest 30
-    credentials: [{site, label, kind, set, updated_at, checked_at, check_ok, check_message, help}] }
+    credentials: [{site, label, kind, set, updated_at, checked_at, check_ok, check_message, help, test_link}] }
   ```
   `sources` excludes `dropped` and internal buckets (`manual:uploads`,
   `link:*`, `edgar:*`). `label` from a shared `source_label(connector,
@@ -610,11 +611,40 @@ the same four stages. All four are heuristic (no LLM) and never pause.
   requeues blocked links and clears `last_error` on sources of that site.
   400 on unknown site or unparseable value.
 - `DELETE /api/credentials/{site}` → `{ok}`.
-- `POST /api/credentials/{site}/test` → live probe, records the result,
-  returns `{ok, message}`. Probes: ft → newest `/rss/home` item fetched
-  with cookies, body over 400 chars; wsj → newest RSSMarketsMain item, same;
-  substack → `https://substack.com/api/v1/reader/posts?limit=1` returns 200
-  JSON (else, if any substack source has a paid post, fetch it); x → `GET
+- `POST /api/credentials/{site}/test {url?}` → live probe, records the
+  result, returns `{ok, message}`. Probes: ft → newest `/rss/home` item
+  fetched with cookies, body over 400 chars; wsj → newest RSSMarketsMain
+  item, same; substack → the pasted `url` (a Substack subscription is per
+  publication, so no post the server could pick proves anything about the
+  account): resolve it to a post (`open.substack.com/pub/<pub>/p/<slug>`
+  share links rewritten, custom domains recognised by rule 20, the fetch
+  guard refusing non-public hosts and unreadable ports up front), fetch
+  `<origin>/api/v1/posts/<slug>` with the cookie and once more without it.
+  The proof is that the cookie unlocks text an anonymous reader does not get
+  (more words in body_html); a whole-looking body alone proves nothing,
+  since Substack hands some paid posts out whole (a discussion thread whose
+  paid part is the comments, a post whose paywalled tail is a few links).
+  When the cookie unlocked nothing, the reader API
+  `substack.com/api/v1/reader/posts?limit=1` (200 JSON for a live session,
+  401 otherwise) and the body's length against the post's word count decide
+  the message: 401 → "Sign-in failed: Substack says this session is no
+  longer valid; sign in again and paste a fresh substack.sid."; body cut
+  short and session live → "Signed in, but <host> still sent the preview:
+  this account has no paid subscription there. Test with a post from a
+  publication it pays for." (ok false); body cut short and no verdict (a
+  403 from the reader API is an edge block, not a verdict) → "Sign-in
+  failed: the post came back as a preview."; body whole → 400 "That post
+  reads the same without the sign-in, so it cannot show whether the sign-in
+  works. Paste a link to a post with text behind the paywall." A link that
+  cannot test anything (missing, not a Substack post, a free post, 404, a
+  custom-domain host that did not answer, the anonymous fetch failing, a
+  post that reads the same without the sign-in) is a 400 with the reason
+  and no check recorded.
+  Preview detection (`rss.substack_preview`): the post JSON carries the
+  whole post's `wordcount` even for the preview, so a paid post whose
+  body_html holds under 80% of that many words, counted over every text
+  node (headings, captions and code included, as Substack counts), is a
+  preview; without a wordcount, under 1,500 chars of body_html is. x → `GET
   /2/users/by/username/x` returns 200; youtube → yt-dlp extract_info on
   `dQw4w9WgXcQ` with the cookiefile succeeds. Messages: "Signed in." /
   "Sign-in failed: <reason>."
@@ -665,7 +695,11 @@ video, or post link above to add it once."
 (not set / set / signed in / failing with check message), help line, then a
 paste field (textarea for cookies, input for token) with Save, Test, and
 Remove buttons. Never displays the stored value; after save the field
-clears. Test toasts the message.
+clears. Test toasts the message. A row whose `test_link` is set (Substack:
+"Link to a paid post you subscribe to") gets a second line, a link input
+with that placeholder and the Test button beside it; Test is disabled until
+the box has a link, Enter in the box runs it, and the link is sent as the
+test body's `url`.
 
 **Upload.** Unchanged.
 

@@ -404,6 +404,12 @@ class CredentialBody(BaseModel):
     note: str | None = None
 
 
+class CredentialTestBody(BaseModel):
+    # the pasted link a probe runs against (Substack: a paid post the account
+    # subscribes to); the other sites' probes take none
+    url: str | None = None
+
+
 class SignInEventBody(BaseModel):
     kind: str
     x: int | None = None
@@ -1305,10 +1311,16 @@ def create_app():
         return {"ok": True}
 
     @app.post("/api/credentials/{site}/test")
-    def api_test_credential(site: str, con=Depends(get_con)):
+    def api_test_credential(site: str, body: CredentialTestBody | None = None,
+                            con=Depends(get_con)):
         if site not in credentials.SITES:
             raise HTTPException(400, "No sign-in for that site.")
-        ok, message = probes.run(con, site)
+        try:
+            ok, message = probes.run(con, site, url=body.url if body else None)
+        except probes.BadLink as e:
+            # the link could not test anything, so nothing is recorded: the
+            # badge keeps saying what the last real check found
+            raise HTTPException(400, str(e)) from None
         credentials.record_check(con, site, ok, message)
         con.commit()
         return {"ok": ok, "message": message}

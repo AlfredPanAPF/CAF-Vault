@@ -416,7 +416,12 @@ def substack_origin(url: str, con=None, state: dict | None = None) -> str | None
             return origin
         if r.ok and "substack" in (parse_feed_head(r.text)["generator"] or "").lower():
             return origin
-    for post in substack_archive(origin, con=con, state=state, limit=1):
+    # the host answered /feed, so a failed archive probe is not "unreachable":
+    # its own failure flag, the deadline still shared (as the well-known paths
+    # in resolve do)
+    for post in substack_archive(origin, con=con, limit=1,
+                                 state=dict(state, failed=False)
+                                 if state is not None else None):
         if post.get("publication_id"):
             return origin
     return None

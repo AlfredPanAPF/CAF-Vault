@@ -154,7 +154,22 @@ the `claim_asserted` view, not in prompts).
      liveness first, so a live cookie behind the wall is reported as such).
      Values never leave the API. Substack sends `substack.sid` to the
      publication host (custom domains too), the rss-bridge SubstackBridge
-     trick, and accepts a bare sid paste.
+     trick, and accepts a bare sid paste. Its Test runs against a link the
+     analyst pastes into the row's link box (a paid post from a publication
+     the account subscribes to; subscriptions are per publication, so no
+     post the server picks proves anything): the post is fetched with the
+     cookie and once more without it, and the proof is that the cookie
+     unlocks text an anonymous reader does not get (Substack hands some paid
+     posts out whole, so a whole-looking body alone proves nothing). When it
+     unlocks nothing, the reader API (401 = dead session) and the body's
+     length against the post's own `wordcount` phrase the failure ("session
+     no longer valid" / "not subscribed there" / "came back as a preview"),
+     and a link that cannot test anything (free post, not a post, 404, host
+     down, a post that reads the same without the sign-in) is a 400 with
+     nothing recorded. Connector-side preview detection
+     (`rss.substack_preview`) uses the post JSON's `wordcount` (the whole
+     post's, sent with the preview too) against the words in every text
+     node of body_html; the old 1,500-char rule is the fallback.
   4. *New connectors:* `youtube.py` (native channel feed → yt-dlp captions
      json3 → whisper fallback only when ASR is on; cookies required from a
      server IP, from a spare Google account), `x.py` (X API v2 bearer,
@@ -221,7 +236,9 @@ the `claim_asserted` view, not in prompts).
   build is what runs without it).
 
   Owner steps: paste the Substack sid, YouTube cookies (spare account) and
-  the X bearer on `/vault/sources` → Sign-ins and press Test. FT is loaded;
+  the X bearer on `/vault/sources` → Sign-ins and press Test (Substack: paste
+  a link to a paid post from a publication the account subscribes to into
+  the row's link box first). FT is loaded;
   WSJ needs a subscriber sign-in harvest. Optional `CAF_BRIDGE_TOKEN` /
   `CAF_CLOAK_LICENSE_KEY` in the server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
   bridge image is pulled by `compose up`; its health check is part of the

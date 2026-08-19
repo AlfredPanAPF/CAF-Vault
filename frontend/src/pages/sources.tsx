@@ -1224,6 +1224,11 @@ function credentialBadge(row: CredentialRow): { label: string; tone: BadgeTone }
 function CredentialItem({ row }: { row: CredentialRow }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
+  // the link the probe runs against, for sites whose test needs one (Substack:
+  // a paid post from a publication the account subscribes to, since a
+  // subscription is per publication and no post we could pick proves anything)
+  const [testLink, setTestLink] = useState("");
+  const needsTestLink = Boolean(row.test_link);
   // the email/password step, and the live view it can hand off to (with the
   // note that says why the live view appeared)
   const [signingIn, setSigningIn] = useState(false);
@@ -1265,7 +1270,8 @@ function CredentialItem({ row }: { row: CredentialRow }) {
   });
 
   const check = useMutation({
-    mutationFn: () => testCredential(row.site),
+    mutationFn: () =>
+      testCredential(row.site, needsTestLink ? testLink.trim() : undefined),
     onSuccess: (res) => {
       if (res.ok) toast.success(res.message);
       else toast.error(res.message);
@@ -1285,6 +1291,13 @@ function CredentialItem({ row }: { row: CredentialRow }) {
   });
 
   const busy = save.isPending || check.isPending || drop.isPending;
+  const canTest = !busy && row.set && (!needsTestLink || testLink.trim().length > 0);
+  const testButton = (
+    <Button disabled={!canTest} onClick={() => check.mutate()}>
+      {check.isPending && <Spinner className="size-3.5" />}
+      Test
+    </Button>
+  );
 
   return (
     <li className="border-b border-border px-4 py-3 last:border-0">
@@ -1334,10 +1347,7 @@ function CredentialItem({ row }: { row: CredentialRow }) {
             {save.isPending && <Spinner className="size-3.5" />}
             Save
           </Button>
-          <Button disabled={busy || !row.set} onClick={() => check.mutate()}>
-            {check.isPending && <Spinner className="size-3.5" />}
-            Test
-          </Button>
+          {!needsTestLink && testButton}
           {canSignIn && (
             <Button disabled={busy} onClick={() => setSigningIn(true)}>
               Sign in
@@ -1348,6 +1358,26 @@ function CredentialItem({ row }: { row: CredentialRow }) {
           </Button>
         </div>
       </div>
+
+      {needsTestLink && (
+        <div className="mt-2 flex flex-wrap items-start gap-2">
+          <Input
+            type="text"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={`${row.label} test link`}
+            placeholder={row.test_link ?? ""}
+            value={testLink}
+            onChange={(e) => setTestLink(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canTest) check.mutate();
+            }}
+            className="w-[26rem] max-w-full"
+          />
+          {testButton}
+        </div>
+      )}
 
       {signingIn && (
         <CredentialSignIn

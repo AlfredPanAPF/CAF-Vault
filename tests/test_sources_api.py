@@ -7,8 +7,10 @@ circuited by having no credential stored. Every response body is checked
 against the pasted secret: a credential value must never leave the API.
 """
 import argparse
+import json
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
 from graph import cli, credentials, fetch, probes, router, webapp
@@ -281,8 +283,13 @@ def test_api_credentials_never_return_the_value(con, monkeypatch):
     rows = {c["site"]: c for c in r.json()["credentials"]}
     assert set(rows) == set(credentials.SITES)
     assert set(rows["ft"]) == {"site", "label", "kind", "set", "updated_at",
-                               "checked_at", "check_ok", "check_message", "help"}
+                               "checked_at", "check_ok", "check_message", "help",
+                               "test_link"}
     assert rows["ft"]["set"] is True and rows["ft"]["kind"] == "cookies"
+    # only Substack's Test runs against a pasted link (a paid post the account
+    # subscribes to); the row says so with the link box's placeholder
+    assert rows["substack"]["test_link"] == "Link to a paid post you subscribe to"
+    assert rows["ft"]["test_link"] is None and rows["x"]["test_link"] is None
     assert rows["x"]["set"] is True and rows["x"]["kind"] == "bearer"
     assert rows["wsj"]["set"] is False
     assert rows["ft"]["label"] == "Financial Times"
@@ -306,7 +313,8 @@ def test_api_credential_test_records_the_check(con, monkeypatch):
     client = TestClient(webapp.app)
     client.put("/api/credentials/wsj", json={"value": "wsjsession=abc123"})
 
-    monkeypatch.setattr(probes, "run", lambda con_, site: (True, "Signed in."))
+    monkeypatch.setattr(probes, "run",
+                        lambda con_, site, url=None: (True, "Signed in."))
     r = client.post("/api/credentials/wsj/test")
     assert r.json() == {"ok": True, "message": "Signed in."}
     row = con.execute("select * from credential where site='wsj'").fetchone()
@@ -315,7 +323,7 @@ def test_api_credential_test_records_the_check(con, monkeypatch):
     assert row["checked_at"] is not None
 
     monkeypatch.setattr(probes, "run",
-                        lambda con_, site: (False, "Sign-in failed: HTTP 403."))
+                        lambda con_, site, url=None: (False, "Sign-in failed: HTTP 403."))
     assert client.post("/api/credentials/wsj/test").json() == {
         "ok": False, "message": "Sign-in failed: HTTP 403."}
     listed = {c["site"]: c for c in client.get("/api/sources").json()["credentials"]}
@@ -324,6 +332,42 @@ def test_api_credential_test_records_the_check(con, monkeypatch):
     assert client.post("/api/credentials/bloomberg/test").status_code == 400
 
     client.delete("/api/credentials/wsj")
+
+
+def test_api_credential_test_passes_the_link_and_records_nothing_for_a_bad_one(
+        con, monkeypatch):
+    client = TestClient(webapp.app)
+    client.put("/api/credentials/substack", json={"value": "sid-for-the-test"})
+    seen = []
+
+    def fake_run(con_, site, url=None):
+        seen.append((site, url))
+        if not url:
+            raise probes.BadLink(probes.NEEDS_LINK)
+        return True, "Signed in."
+
+    monkeypatch.setattr(probes, "run", fake_run)
+    # no link: 400 with the reason, and the row keeps its unchecked state
+    r = client.post("/api/credentials/substack/test")
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Paste a link to a paid post you subscribe to."
+    r = client.post("/api/credentials/substack/test", json={"url": ""})
+    assert r.status_code == 400
+    row = con.execute("select * from credential where site='substack'").fetchone()
+    assert row["check_ok"] is None and row["checked_at"] is None
+    # the link goes to the probe as pasted
+    r = client.post("/api/credentials/substack/test",
+                    json={"url": "https://letter.example.com/p/the-paid-post"})
+    assert r.json() == {"ok": True, "message": "Signed in."}
+    assert seen[-1] == ("substack", "https://letter.example.com/p/the-paid-post")
+    row = con.execute("select * from credential where site='substack'").fetchone()
+    assert row["check_ok"] is True
+    # the other sites' probes still run without a body
+    client.put("/api/credentials/x", json={"value": X_SECRET})
+    monkeypatch.setattr(probes, "run", lambda con_, site, url=None: (True, "Signed in."))
+    assert client.post("/api/credentials/x/test").json()["ok"] is True
+    client.delete("/api/credentials/substack")
+    client.delete("/api/credentials/x")
 
 
 def test_probe_without_a_credential_says_so(con):
@@ -391,6 +435,259 @@ def test_ft_probe_tells_a_live_session_from_a_bot_wall(con, monkeypatch):
     monkeypatch.setattr(fetch, "get", get2)
     ok, message = probes.run(con, "ft")
     assert ok is False and "no longer valid" in message
+    con.rollback()
+
+
+# ---------------------------------------------------------------- substack
+
+FULL_POST = "<p>" + ("Every word of the paid post, for subscribers. " * 60) + "</p>"
+PAID_POST = "https://letter.example.com/p/the-paid-post"
+
+
+def substack_json(body_html, audience="only_paid", wordcount=None):
+    data = {"title": "The paid post", "post_date": "2026-08-12T09:00:00Z",
+            "audience": audience, "body_html": body_html}
+    if wordcount is not None:
+        data["wordcount"] = wordcount
+    return json.dumps(data)
+
+
+def substack_net(post_answer, anonymous_answer=None, reader_answer=None,
+                 calls=None):
+    """fetch.get for the Substack probe: the post API with the cookie
+    (`site="substack"`) and without it (`site=None`; the same answer unless
+    `anonymous_answer` says otherwise), the reader API, and the router's
+    Substack detection for a custom domain (`x-cluster` on /feed). `calls`
+    collects (url, site) for every fetch; the probe swallows exceptions from
+    the reader fetch, so a test that wants to know the reader API was not
+    asked must look there rather than raise from here."""
+    def get(url, **kw):
+        site = kw.get("site")
+        if calls is not None:
+            calls.append((url, site))
+        if "/api/v1/posts/" in url:
+            answer = post_answer
+            if site is None and anonymous_answer is not None:
+                answer = anonymous_answer
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        if url.startswith(probes.READER_API):
+            return reader_answer or FakeResponse("busy", status=503)
+        if url.endswith("/feed"):
+            r = FakeResponse("<rss/>")
+            r.headers = {"content-type": "application/xml", "x-cluster": "substack"}
+            return r
+        raise AssertionError(f"unexpected fetch {url}")
+    return get
+
+
+def reader_calls(calls):
+    return [u for u, _site in calls if u.startswith(probes.READER_API)]
+
+
+def post_calls(calls):
+    """(site) of each post API fetch, in order: "substack" with the cookie,
+    None without it."""
+    return [site for u, site in calls if "/api/v1/posts/" in u]
+
+
+def test_substack_probe_needs_a_link(con):
+    credentials.set(con, "substack", "sid-value")
+    with pytest.raises(probes.BadLink) as e:
+        probes.run(con, "substack")
+    assert str(e.value) == "Paste a link to a paid post you subscribe to."
+    with pytest.raises(probes.BadLink):
+        probes.run(con, "substack", url="   ")
+    con.rollback()
+
+
+def test_substack_post_ref_reads_pasted_links(con, monkeypatch):
+    # a publication host needs no network; a share link is rewritten onto it;
+    # a bare host gets https; a link with no post in it is refused
+    assert probes.substack_post_ref("https://letter.substack.com/p/the-post?r=abc") == \
+        ("https://letter.substack.com", "the-post")
+    assert probes.substack_post_ref("letter.substack.com/p/the-post/") == \
+        ("https://letter.substack.com", "the-post")
+    assert probes.substack_post_ref(
+        "https://open.substack.com/pub/letter/p/the-post?r=abc&utm_medium=ios") == \
+        ("https://letter.substack.com", "the-post")
+    # the tails Substack hangs off a post (comments, one comment) are not
+    # part of the slug
+    assert probes.substack_post_ref("https://letter.substack.com/p/the-post/comments") == \
+        ("https://letter.substack.com", "the-post")
+    assert probes.substack_post_ref("https://letter.substack.com/p/the-post/comment/123") == \
+        ("https://letter.substack.com", "the-post")
+    for bad in ("https://letter.substack.com", "https://letter.substack.com/archive",
+                "https://substack.com/home/post/p-123", "not a link", "mailto:x@y.z",
+                # pastes urlsplit itself refuses must read as "not a post" too,
+                # not surface as a Python error in a recorded check
+                "https://[::1/p/abc", "https://letter／substack.com/p/x",
+                "http://a[b]c/p/x",
+                # ... and so must a port the fetch guard refuses, and a host
+                # nothing public can be behind (no fetch happens for these)
+                "https://letter.substack.com:99999/p/the-post",
+                "https://letter.substack.com:abc/p/the-post",
+                "http://127.0.0.1/p/x", "https://localhost/p/x"):
+        with pytest.raises(probes.BadLink) as e:
+            probes.substack_post_ref(bad)
+        assert str(e.value).startswith("That is not a link to a Substack post.")
+    # a custom domain is recognised the router's way (x-cluster on /feed)
+    monkeypatch.setattr(fetch, "get", substack_net(FakeResponse("{}")))
+    assert probes.substack_post_ref("https://www.letter.news/p/the-post", con=con) == \
+        ("https://www.letter.news", "the-post")
+    # ... a site that is not a Substack at all is refused ...
+    def not_substack(url, **kw):
+        return FakeResponse("<html>plain</html>", status=200)
+    monkeypatch.setattr(fetch, "get", not_substack)
+    with pytest.raises(probes.BadLink) as e:
+        probes.substack_post_ref("https://www.example.com/p/the-post", con=con)
+    assert str(e.value).startswith("That is not a link to a Substack post.")
+    # ... and a host that did not answer is reported as that, not as "not a
+    # Substack": the analyst's link may well be right
+    def down(url, **kw):
+        raise ConnectionError("no route to host")
+    monkeypatch.setattr(fetch, "get", down)
+    with pytest.raises(probes.BadLink) as e:
+        probes.substack_post_ref("https://www.letter.news/p/the-post", con=con)
+    assert str(e.value) == ("Could not reach www.letter.news to check the link. "
+                            "Try again in a moment.")
+
+
+def test_substack_probe_reads_the_pasted_paid_post(con, monkeypatch):
+    credentials.set(con, "substack", "sid-value")
+    preview = FakeResponse(substack_json("<p>Just the preview.</p>", wordcount=400))
+    # the cookie unlocks text an anonymous reader does not get: signed in, and
+    # the reader API is never asked
+    calls = []
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST, wordcount=400)),
+        anonymous_answer=preview, calls=calls))
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+    assert post_calls(calls) == ["substack", None]
+    assert reader_calls(calls) == []
+    # the proof is the difference, not the post's own word count: a whole post
+    # whose body reads short of Substack's count (headings, captions and code
+    # are counted; a quirk in the count) still passes when the cookie unlocked
+    # it, and so does a post whose paywalled tail is a few words
+    heavy = ("<h2>" + ("Heading words here. " * 60) + "</h2>"
+             "<p>" + ("Paragraph words here. " * 60) + "</p>"
+             "<figure><figcaption>" + ("Caption words. " * 60) + "</figcaption></figure>"
+             "<pre>" + ("code words " * 60) + "</pre>")
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(heavy, wordcount=900)),
+        anonymous_answer=preview))
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+    almost_free = "<p>" + ("Free words for everyone. " * 500) + "</p>"
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(almost_free + "<p>The paid link.</p>", wordcount=2003)),
+        anonymous_answer=FakeResponse(substack_json(almost_free, wordcount=2003))))
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+
+    # the cookie unlocked nothing and the body is cut short of the post's
+    # count: a preview. With a live session the account does not subscribe here
+    calls = []
+    monkeypatch.setattr(fetch, "get", substack_net(
+        preview, reader_answer=FakeResponse('{"posts": []}'), calls=calls))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False
+    assert message == ("Signed in, but letter.example.com still sent the preview: "
+                       "this account has no paid subscription there. Test with a "
+                       "post from a publication it pays for.")
+    assert post_calls(calls) == ["substack", None] and len(reader_calls(calls)) == 1
+
+    # a preview and the reader API says 401: the session is dead
+    monkeypatch.setattr(fetch, "get", substack_net(
+        preview,
+        reader_answer=FakeResponse('{"errors":[{"msg":"Please sign in"}]}', status=401)))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False and "no longer valid" in message
+    assert message.startswith("Sign-in failed:") and message.endswith("substack.sid.")
+    # ... and so is a dead session on a post Substack hands out whole (no
+    # difference, the reader API says dead): the session verdict comes first
+    whole = FakeResponse(substack_json("<p>Ask your questions below.</p>", wordcount=4))
+    monkeypatch.setattr(fetch, "get", substack_net(
+        whole,
+        reader_answer=FakeResponse('{"errors":[{"msg":"Please sign in"}]}', status=401)))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False and "no longer valid" in message
+
+    # a preview and the reader API did not say (503, or a 403 edge block that
+    # is no verdict on the cookie): a plain failure
+    for status in (503, 403):
+        monkeypatch.setattr(fetch, "get", substack_net(
+            preview, reader_answer=FakeResponse("<html>busy</html>", status=status)))
+        assert probes.run(con, "substack", url=PAID_POST) == \
+            (False, "Sign-in failed: the post came back as a preview.")
+
+    # a long preview is still a preview: the post JSON's wordcount is the
+    # whole post's, and the body falls well short of it
+    long_preview = "<p>" + ("A generous free preview of the paid post. " * 400) + "</p>"
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(long_preview, wordcount=10_000)),
+        reader_answer=FakeResponse('{"posts": []}')))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False and message.startswith("Signed in, but")
+
+    # the anonymous fetch is the comparison: when it fails nothing was learned
+    # and nothing is recorded
+    def flaky(url, **kw):
+        if "/api/v1/posts/" in url and kw.get("site") is None:
+            raise ConnectionError("reset")
+        return substack_net(FakeResponse(substack_json(FULL_POST, wordcount=400)))(url, **kw)
+    monkeypatch.setattr(fetch, "get", flaky)
+    with pytest.raises(probes.BadLink) as e:
+        probes.run(con, "substack", url=PAID_POST)
+    assert str(e.value) == ("Could not reach letter.example.com to check the link. "
+                            "Try again in a moment.")
+    con.rollback()
+
+
+def test_substack_probe_refuses_links_that_prove_nothing(con, monkeypatch):
+    credentials.set(con, "substack", "sid-value")
+    # a free post reads the same with or without the sign-in, and is refused
+    # before a second fetch
+    calls = []
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST, audience="everyone", wordcount=400)),
+        calls=calls))
+    with pytest.raises(probes.BadLink) as e:
+        probes.run(con, "substack", url=PAID_POST)
+    assert str(e.value).startswith("That post is free to read")
+    assert post_calls(calls) == ["substack"] and reader_calls(calls) == []
+    # a paid post Substack hands out whole (a discussion thread whose paid part
+    # is the comments; a post with its paywalled tail missing from the count)
+    # proves nothing either, whether the session is live or unknown, and the
+    # message says what to paste instead
+    for reader in (FakeResponse('{"posts": []}'), FakeResponse("busy", status=503)):
+        monkeypatch.setattr(fetch, "get", substack_net(
+            FakeResponse(substack_json("<p>Ask your questions below.</p>", wordcount=4)),
+            reader_answer=reader))
+        with pytest.raises(probes.BadLink) as e:
+            probes.run(con, "substack", url=PAID_POST)
+        assert str(e.value) == ("That post reads the same without the sign-in, so it "
+                                "cannot show whether the sign-in works. Paste a link "
+                                "to a post with text behind the paywall.")
+    # the same with a whole body and no word count at all
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST)), reader_answer=FakeResponse('{"posts": []}')))
+    with pytest.raises(probes.BadLink) as e:
+        probes.run(con, "substack", url=PAID_POST)
+    assert str(e.value).startswith("That post reads the same without the sign-in")
+    # nothing at that address
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse('{"error":"Post not found"}', status=404)))
+    with pytest.raises(probes.BadLink) as e:
+        probes.run(con, "substack", url=PAID_POST)
+    assert str(e.value) == "Substack has no post at that link. Check the link and try again."
+    # any other trouble is a plain failure, still without the reader API
+    monkeypatch.setattr(fetch, "get", substack_net(FakeResponse("busy", status=503)))
+    assert probes.run(con, "substack", url=PAID_POST) == \
+        (False, "Sign-in failed: HTTP 503.")
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse("<html>not json</html>", status=200)))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False and message.startswith("Sign-in failed:")
     con.rollback()
 
 
