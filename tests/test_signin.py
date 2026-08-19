@@ -39,6 +39,23 @@ FT_JAR_ANONYMOUS = [
      "path": "/", "expires": 1790000000.0, "secure": True, "httpOnly": False},
 ]
 
+# WSJ mid-redirect: Dow Jones SSO has authenticated and set `sso` on
+# .dowjones.com, but the browser has not yet landed back on www.wsj.com, so
+# DJSESSION is not set. This state used to be stored as a "signed in" session
+# and then failed the Test; the fast path must instead keep waiting.
+WSJ_JAR_SSO_ONLY = [
+    {"name": "sso", "value": "true", "domain": ".dowjones.com", "path": "/",
+     "expires": 1790000000.0, "secure": True, "httpOnly": True},
+    {"name": "djcs_route", "value": "abc", "domain": ".dowjones.com",
+     "path": "/", "expires": 1790000000.0, "secure": True, "httpOnly": False},
+]
+# WSJ once the OAuth callback has completed: DJSESSION is set on wsj.com
+WSJ_SECRET = "wsjsessionsupersecret.value"
+WSJ_JAR = WSJ_JAR_SSO_ONLY + [
+    {"name": "DJSESSION", "value": WSJ_SECRET, "domain": ".wsj.com", "path": "/",
+     "expires": 1790000000.0, "secure": True, "httpOnly": False},
+]
+
 
 # ---------------------------------------------------------------- fakes
 
@@ -593,6 +610,53 @@ def test_submit_hands_back_the_live_view_when_the_form_is_not_found(
     # the session stays open for the analyst to take over
     assert client.get(f"/api/signin/{out['session']['id']}").status_code == 200
     assert credentials.get(con, "ft") is None
+
+
+def test_submit_wsj_waits_past_the_sso_step_for_djsession(
+        con, monkeypatch, sidecar, client):
+    """WSJ: `sso` alone is the Dow Jones SSO step, not a finished sign-in. The
+    fast path must not store it and claim success (the bug behind "signed in"
+    then a Test that fails); it hands back the live view to finish."""
+    monkeypatch.setattr(signin, "SUBMIT_POLLS", 2)
+    monkeypatch.setattr(signin, "POLL_S", 0)
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(WSJ_JAR_SSO_ONLY)
+    stub_fill(monkeypatch)
+
+    r = client.post("/api/signin/wsj/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    assert r.status_code == 200
+    out = r.json()
+    assert out["signed_in"] is False and out["needs_view"] is True
+    assert out["message"] == signin.NEEDS_VIEW
+    # nothing stored, and the session stays open for the analyst to finish
+    assert credentials.get(con, "wsj") is None
+    assert client.get(f"/api/signin/{out['session']['id']}").status_code == 200
+
+
+def test_submit_wsj_stores_once_djsession_lands(con, monkeypatch, sidecar,
+                                                client):
+    """DJSESSION set means the wsj.com side of the sign-in landed: store it."""
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(WSJ_JAR)
+    stub_fill(monkeypatch)
+
+    r = client.post("/api/signin/wsj/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ok"] is True and out["signed_in"] is True
+    assert out.get("needs_view") in (None, False)
+    assert out["message"] == "Saved the WSJ sign-in."
+    # no cookie value (nor the password) ever leaves the API
+    assert WSJ_SECRET not in r.text and PASSWORD not in r.text
+
+    stored = credentials.get(con, "wsj")["value"]
+    assert f"DJSESSION\t{WSJ_SECRET}" in stored
+    assert signin._SESSIONS == {}
+
+    credentials.delete(con, "wsj")
+    con.commit()
 
 
 def test_submit_reuses_an_open_session_and_returns_to_the_login_page(

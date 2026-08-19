@@ -47,6 +47,17 @@ except Exception:                              # pragma: no cover - not installe
 # Login pages and what a finished sign-in leaves behind. `hosts` is what the
 # stored jar is filtered to (credentials.SITE_HOSTS says the same for the
 # fetchers); `session` is the cookie whose presence means the form is done.
+#
+# WSJ is `DJSESSION` only, deliberately not `sso`. Dow Jones SSO sets `sso` on
+# .dowjones.com during the auth step, before the browser follows the OAuth
+# redirect back to www.wsj.com/client/auth — and that callback is what mints
+# DJSESSION and the wsj.com article session. Accepting `sso` made the fast
+# path declare success and close the browser mid-redirect, storing a jar with
+# `sso` but no DJSESSION: a dead session that reported "signed in" and then
+# failed the Test with "the article came back without its text". Waiting for
+# DJSESSION keeps polling until the wsj.com side of the sign-in has landed
+# (verified live 2026-08-19: a real subscriber login sets DJSESSION on
+# www.wsj.com and the article unlocks; the pre-redirect state does not).
 SITES = {
     "ft": {
         "name": "FT",
@@ -58,7 +69,7 @@ SITES = {
         "name": "WSJ",
         "login": "https://www.wsj.com/client/login",
         "hosts": ("wsj.com", "dowjones.com"),
-        "session": ("DJSESSION", "sso", "djcs_session"),
+        "session": ("DJSESSION",),
     },
 }
 
@@ -74,12 +85,15 @@ NAV_TIMEOUT_MS = 45_000
 # Fast path (§10f): fill the login form, then poll the context for the session
 # cookie. FIELD_MS is how long the email field is waited for; STEP_MS the jump
 # from an email-only first step to the password field; SUBMIT_POLLS × POLL_S
-# the wait for the cookie after the form is sent (a slow login, a redirect
-# chain). The form fields, by the attributes login pages actually use, most
-# specific first; `_fill_login` takes the first match.
+# the wait for the cookie after the form is sent. That wait spans the whole
+# redirect chain: WSJ's DJSESSION is only set once the OAuth callback lands
+# back on www.wsj.com, a hop past the Dow Jones SSO POST, and the sidecar box
+# is CPU-capped, so the budget is 45s. The form fields, by the attributes
+# login pages actually use, most specific first; `_fill_login` takes the first
+# match.
 FIELD_MS = 15_000
 STEP_MS = 12_000
-SUBMIT_POLLS = 60
+SUBMIT_POLLS = 90
 POLL_S = 0.5
 EMAIL_SEL = ", ".join([
     "input[type=email]", "input[name=email]", "input[name=username]",

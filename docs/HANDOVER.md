@@ -249,10 +249,27 @@ the `claim_asserted` view, not in prompts).
   the API), `tests/test_signin_fill.py` (opt-in `CAF_E2E=1`, `_fill_login`
   against real one-page/two-step forms in Chromium). Fallback: paste a
   cookies.txt or `PUT /api/credentials/<site>`. FT session = `FTSession_s`,
-  WSJ = `DJSESSION`/`sso`. When a cookie expires the source row flips to
-  "Sign-in needed": press Sign in and enter the details again. WSJ subscription had
-  lapsed on 2026-08-18; the browser path only runs for a site whose sign-in
-  is pasted, so WSJ stays on feed teasers until then. Optional
+  WSJ = `DJSESSION` only. When a cookie expires the source row flips to
+  "Sign-in needed": press Sign in and enter the details again.
+
+  WSJ sign-in fix (2026-08-19): the fast path used to accept `sso` as the WSJ
+  session cookie. Dow Jones SSO sets `sso` on `.dowjones.com` during the auth
+  POST, one hop before the OAuth callback lands back on www.wsj.com and mints
+  `DJSESSION` and the wsj.com article session. So the fast path declared
+  success, stored a jar with `sso` but no DJSESSION, and closed the browser
+  mid-redirect: a dead session that reported "signed in" and then failed Test
+  with "the article came back without its text". Ground-truth check (live
+  subscriber login in a debug browser): a completed WSJ login sets `DJSESSION`
+  on www.wsj.com and the article unlocks (15 paragraphs / ~5.5k chars, no
+  "Subscribe Now" snippet overlay); the pre-redirect state does not. Fix:
+  `signin.SITES["wsj"]["session"] = ("DJSESSION",)`, so `_wait_for_session_cookie`
+  keeps polling until the wsj.com side lands (poll budget raised to 45s for
+  the extra hop on the CPU-capped sidecar); a step the server cannot type
+  (passkey, one-time code) still falls through to the live view. Regression
+  tests: `test_submit_wsj_waits_past_the_sso_step_for_djsession`,
+  `test_submit_wsj_stores_once_djsession_lands`. Any WSJ credential stored
+  before this fix is the dead `sso`-only jar and must be re-done from the
+  Sign-ins card once deployed. Optional
   `CAF_CLOAK_LICENSE_KEY` in the server `.env` selects the current keyed
   CloakBrowser build (free key = 1 concurrent session; the keyless v146
   build is what runs without it).
@@ -260,8 +277,9 @@ the `claim_asserted` view, not in prompts).
   Owner steps: paste the Substack sid, YouTube cookies (spare account) and
   the X bearer on `/vault/sources` → Sign-ins and press Test (Substack: paste
   a link to a paid post from a publication the account subscribes to into
-  the row's link box first). FT is loaded;
-  WSJ needs a subscriber sign-in harvest. Optional `CAF_BRIDGE_TOKEN` /
+  the row's link box first). FT is loaded; WSJ is signed in from the Sign-ins
+  card (Sign in → email + password) now that the DJSESSION fix lands a live
+  subscriber session. Optional `CAF_BRIDGE_TOKEN` /
   `CAF_CLOAK_LICENSE_KEY` in the server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
   bridge image is pulled by `compose up`; its health check is part of the
   gate).
