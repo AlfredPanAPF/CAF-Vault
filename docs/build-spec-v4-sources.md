@@ -833,6 +833,46 @@ configured. Verified locally: the WSJ SSO page rendered in the modal, a click
 focused its email field and typed text appeared in the next frame. Cookies
 born this way come from the server's own IP and browser profile.
 
+## 10f. Fast sign-in: fill the form on the server (2026-08-19, built)
+
+The live view (§10d) is a JPEG poll at ~700 ms against a CPU-capped sidecar,
+so signing in through it lags: every click waits for the next frame. Owner
+direction: keep the sidecar, drop the frame-by-frame interaction for the
+common case. The "Sign in" button on an FT/WSJ row now opens a small form
+(email + password, `CredentialSignIn` in `pages/sources.tsx`) instead of the
+live view. `POST /api/signin/{site}/submit` (`graph/signin.submit`):
+
+- Opens (or reuses) the site's one session, the same one the live view uses;
+  a reused session is put back on the login page first.
+- `_fill_login` types the email into the login form and the password into
+  the password field, handling both a one-page form and a two-step one
+  (email, then the password field appears — Enter first, a Continue button if
+  that did not take). Selectors are by the attributes login pages actually
+  use (`input[type=email]`, `input[type=password]`, …), most specific first.
+- Polls the context for the site's session cookie (`FTSession_s`/`FTSession`;
+  `DJSESSION`/`sso`/`djcs_session`) for up to ~30 s. Found → stores the jar
+  through the same `credentials.set` + `credential_saved` the live view and a
+  pasted export use, closes the session, returns `signed_in: true`; the row
+  goes green with no live view shown.
+- Not found, or the form was not where it expected (a one-time code, a
+  captcha, an SSO redirect, a challenge): the same open session is handed
+  back as `{needs_view: true, session}`, and the frontend drops into the
+  live-view modal (§10d) at whatever step the site is on, with the note "The
+  site needs another step. Finish signing in here." The form's "Sign in in
+  the browser" button skips straight to the live view for anyone who would
+  rather do it all by hand (or whose login is passwordless/SSO).
+
+The email and password are used once to fill the form and are **never stored
+or logged** (the request rides mTLS; the response never carries them back;
+`submit` prints only the site and a step name). Same trust model as the
+pasted cookies. Verified: `tests/test_signin.py` covers the orchestration
+with a stubbed fill (stores on success; hands back the live view when the
+cookie never comes or the form is missing; reuses an open session and
+re-navigates; validation; site allowlist; sidecar-down) and asserts the
+password never appears in a response; `tests/test_signin_fill.py` (opt-in
+`CAF_E2E=1`) runs `_fill_login` against a real one-page and two-step login
+form in Chromium and against a formless challenge page.
+
 ## 11. Out of scope (recorded, not built)
 
 - Full text for FT and WSJ from the server. Verified walls (Cloudflare

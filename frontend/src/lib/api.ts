@@ -649,8 +649,32 @@ export interface SignInFinish {
   message: string;
 }
 
+/** The result of the fast path (spec v4 §10f): the server filled the login
+ *  form and either signed in, or handed back a live session to finish by hand
+ *  (a one-time code, a captcha). */
+export interface SignInSubmit {
+  ok: boolean;
+  signed_in: boolean;
+  needs_view?: boolean;
+  session?: SignInSession;
+  cookies?: number;
+  message: string;
+}
+
 export function startSignIn(site: string): Promise<SignInSession> {
   return apiFetch(`/api/signin/${site}`, { method: "POST" });
+}
+
+/** Fill the login form for `site` with the analyst's own details. They are
+ *  used once and never stored; the response never carries them back. */
+export function submitSignIn(
+  site: string,
+  body: { email: string; password: string },
+): Promise<SignInSubmit> {
+  return apiFetch(`/api/signin/${site}/submit`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function signInFrame(id: string): Promise<SignInFrame> {

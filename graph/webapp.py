@@ -414,6 +414,11 @@ class SignInEventBody(BaseModel):
     url: str | None = None
 
 
+class SignInSubmitBody(BaseModel):
+    email: str
+    password: str
+
+
 class ErDecisionBody(BaseModel):
     decision: str
     cik: int | None = None
@@ -1310,14 +1315,20 @@ def create_app():
 
     # ---------------------------------------------- sign in from the browser
     #
-    # These five drive one page in the sidecar (graph/signin.py). They are
-    # async because the Playwright objects belong to the event loop that made
-    # them, and the sessions live in this process: one uvicorn worker, at most
-    # one session per site.
+    # These drive one page in the sidecar (graph/signin.py). They are async
+    # because the Playwright objects belong to the event loop that made them,
+    # and the sessions live in this process: one uvicorn worker, at most one
+    # session per site. `submit` fills the login form and waits for the cookie;
+    # the other five are the live-view fallback it drops into.
 
     @app.post("/api/signin/{site}")
     async def api_signin_start(site: str):
         return await signin.start(site)
+
+    @app.post("/api/signin/{site}/submit")
+    async def api_signin_submit(site: str, body: SignInSubmitBody,
+                                con=Depends(get_con)):
+        return await signin.submit(site, body.email, body.password, con)
 
     @app.get("/api/signin/{session_id}")
     async def api_signin_frame(session_id: str):

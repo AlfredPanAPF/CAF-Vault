@@ -497,6 +497,156 @@ def test_signin_event_when_the_page_stops_answering(con, monkeypatch, sidecar,
     assert r.json()["detail"] == "The sign-in page did not respond. Try again."
 
 
+# ---------------------------------------------------------------- fast path
+#
+# The form fill itself (graph.signin._fill_login against a real login form) is
+# tested in tests/test_signin_fill.py. Here it is stubbed, so these cover the
+# orchestration: what is stored, when the live view is handed back, and that a
+# password never leaves the API.
+
+PASSWORD = "correct-horse-battery-staple"
+
+
+def stub_fill(monkeypatch, outcome="ok"):
+    """Replace the form fill. Returns a dict that records what it was asked to
+    type, so the test can prove submit passes it through (and only through)."""
+    seen = {}
+
+    async def fake_fill(page, email, password):
+        seen["email"] = email
+        seen["password"] = password
+        if outcome == "raise":
+            raise RuntimeError("no email field on the page")
+
+    monkeypatch.setattr(signin, "_fill_login", fake_fill)
+    return seen
+
+
+def test_submit_signs_in_and_stores_the_cookies(con, monkeypatch, sidecar,
+                                                client):
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(FT_JAR)
+    seen = stub_fill(monkeypatch)
+
+    r = client.post("/api/signin/ft/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ok"] is True and out["signed_in"] is True
+    assert out.get("needs_view") in (None, False)
+    assert out["cookies"] == 2                    # the google.com one is not ours
+    assert out["message"] == "Saved the FT sign-in."
+    # neither the password nor a cookie value ever leaves the API
+    assert PASSWORD not in r.text and FT_SECRET not in r.text
+
+    # the form got exactly what the analyst typed, and nothing else
+    assert seen == {"email": "analyst@example.com", "password": PASSWORD}
+
+    stored = credentials.get(con, "ft")["value"]
+    assert f"FTSession_s\t{FT_SECRET}" in stored
+    # the session is closed once the cookies are in
+    assert signin._SESSIONS == {}
+    assert remote.pages[0].closed is True
+
+    credentials.delete(con, "ft")
+    con.commit()
+
+
+def test_submit_hands_back_the_live_view_when_a_step_is_needed(
+        con, monkeypatch, sidecar, client):
+    """The form went in but no session cookie followed (a one-time code, a
+    captcha): the same open session becomes the live view to finish by hand."""
+    monkeypatch.setattr(signin, "SUBMIT_POLLS", 2)
+    monkeypatch.setattr(signin, "POLL_S", 0)
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(FT_JAR_ANONYMOUS)
+    stub_fill(monkeypatch)
+
+    r = client.post("/api/signin/ft/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ok"] is True and out["signed_in"] is False
+    assert out["needs_view"] is True
+    assert out["message"] == signin.NEEDS_VIEW
+    session = out["session"]
+    assert session["site"] == "ft" and session["url"] == FT_LOGIN
+    assert PASSWORD not in r.text
+
+    # the same session is live: its frame endpoint answers, and it is the only
+    # one open
+    assert len(signin._SESSIONS) == 1
+    assert client.get(f"/api/signin/{session['id']}").status_code == 200
+    assert credentials.get(con, "ft") is None
+
+
+def test_submit_hands_back_the_live_view_when_the_form_is_not_found(
+        con, monkeypatch, sidecar, client):
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(FT_JAR_ANONYMOUS)
+    stub_fill(monkeypatch, outcome="raise")
+
+    r = client.post("/api/signin/ft/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    out = r.json()
+    assert out["signed_in"] is False and out["needs_view"] is True
+    # the session stays open for the analyst to take over
+    assert client.get(f"/api/signin/{out['session']['id']}").status_code == 200
+    assert credentials.get(con, "ft") is None
+
+
+def test_submit_reuses_an_open_session_and_returns_to_the_login_page(
+        con, monkeypatch, sidecar, client):
+    _pw, remote = install(monkeypatch)
+    remote.contexts[0].jar = list(FT_JAR)
+    client.post("/api/signin/ft")             # the live view is already open
+    page = remote.pages[0]
+    goto_login = ("goto", FT_LOGIN, "domcontentloaded", signin.NAV_TIMEOUT_MS)
+    before = page.actions.count(goto_login)
+    stub_fill(monkeypatch)
+
+    r = client.post("/api/signin/ft/submit",
+                    json={"email": "analyst@example.com", "password": PASSWORD})
+    assert r.json()["signed_in"] is True
+    # a resumed session is put back on the login page before the form is filled
+    assert page.actions.count(goto_login) == before + 1
+    assert len(remote.pages) == 1             # the same page, no second tab
+
+    credentials.delete(con, "ft")
+    con.commit()
+
+
+def test_submit_needs_an_email_and_a_password(con, monkeypatch, sidecar, client):
+    pw, _remote = install(monkeypatch)
+    for body in ({"email": "", "password": PASSWORD},
+                 {"email": "analyst@example.com", "password": ""},
+                 {"email": "   ", "password": "x"}):
+        r = client.post("/api/signin/ft/submit", json=body)
+        assert r.status_code == 400, body
+        assert r.json()["detail"] == "Enter your email and password."
+    assert pw.calls == []                      # the sidecar was never dialled
+
+
+def test_submit_only_for_ft_and_wsj(con, monkeypatch, sidecar, client):
+    pw, _remote = install(monkeypatch)
+    r = client.post("/api/signin/substack/submit",
+                    json={"email": "a@example.com", "password": PASSWORD})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "No sign-in for that site."
+    assert pw.calls == []
+
+
+def test_submit_without_the_sidecar(con, monkeypatch, client):
+    monkeypatch.delenv("CAF_BROWSER_URL", raising=False)
+    pw, _remote = install(monkeypatch)
+    r = client.post("/api/signin/ft/submit",
+                    json={"email": "a@example.com", "password": PASSWORD})
+    assert r.status_code == 503
+    assert r.json()["detail"] == "The browser is not running."
+    assert signin._SESSIONS == {}
+    assert pw.calls == []
+
+
 # ---------------------------------------------------------------- finish
 
 

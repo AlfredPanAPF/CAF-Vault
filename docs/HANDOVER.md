@@ -197,13 +197,23 @@ the `claim_asserted` view, not in prompts).
   CDP, persistent context reuse, cookie injection, wall-clear polling with
   fresh-context retries) + the `fetch.get` hook for FT/WSJ article pages.
   Spec §10c. Verified in production: FT probe "Signed in.", FT markets feed
-  ingesting 3-5k-char bodies (~8 s each). Sign in from the page: the
-  Sign-ins card's "Sign in" button (FT, WSJ) opens a live view of the
-  sidecar browser (`graph/signin.py`, spec §10d); the owner logs in there
-  and Done stores the cookies (born on the server's own IP and profile).
-  Fallback: paste a cookies.txt or `PUT /api/credentials/<site>`. FT session
-  = `FTSession_s`, WSJ = `DJSESSION`/`sso`. When a cookie expires the source
-  row flips to "Sign-in needed": press Sign in again. WSJ subscription had
+  ingesting 3-5k-char bodies (~8 s each). Sign in from the page
+  (`graph/signin.py`): the Sign-ins card's "Sign in" button (FT, WSJ) opens a
+  small email + password form; `POST /api/signin/{site}/submit`
+  (`signin.submit`, spec §10f) types them into the login form in the sidecar
+  and waits ~30 s for the session cookie, storing it on success with no live
+  view shown. If the site needs a step the server cannot type (a one-time
+  code, a captcha) or the form is not found, the same open session is handed
+  back and the modal drops into the JPEG live view (spec §10d) to finish by
+  hand; the form's "Sign in in the browser" button goes straight there. Email
+  and password are used once and never stored or logged. Cookies born either
+  way come from the server's own IP and profile. Tests: `tests/test_signin.py`
+  (fast-path orchestration, stubbed fill, asserts the password never leaves
+  the API), `tests/test_signin_fill.py` (opt-in `CAF_E2E=1`, `_fill_login`
+  against real one-page/two-step forms in Chromium). Fallback: paste a
+  cookies.txt or `PUT /api/credentials/<site>`. FT session = `FTSession_s`,
+  WSJ = `DJSESSION`/`sso`. When a cookie expires the source row flips to
+  "Sign-in needed": press Sign in and enter the details again. WSJ subscription had
   lapsed on 2026-08-18; the browser path only runs for a site whose sign-in
   is pasted, so WSJ stays on feed teasers until then. Optional
   `CAF_CLOAK_LICENSE_KEY` in the server `.env` selects the current keyed

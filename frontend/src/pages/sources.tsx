@@ -20,6 +20,7 @@ import {
   signInEvent,
   signInFrame,
   startSignIn,
+  submitSignIn,
   testCredential,
   type CredentialRow,
   type LinkRow,
@@ -720,10 +721,12 @@ const frameFails = 4; // failed polls before the view is called stale
  */
 function SignInModal({
   session,
+  intro,
   onClose,
   onSaved,
 }: {
   session: SignInSession;
+  intro?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -1013,7 +1016,8 @@ function SignInModal({
           <div className="min-w-0">
             <h2 className="text-[13px] font-medium text-foreground">{title}</h2>
             <p className="mt-0.5 text-muted-foreground">
-              Sign in as you normally would. When the site shows you signed in, press Done.
+              {intro ??
+                "Sign in as you normally would. When the site shows you signed in, press Done."}
             </p>
           </div>
           <span
@@ -1080,6 +1084,136 @@ function SignInModal({
   );
 }
 
+/**
+ * The fast path (spec v4 §10f): the analyst's email and password, typed into
+ * the site's login form by the server. On success the row goes green with no
+ * live view at all; when the site needs a step the server cannot type (a
+ * one-time code, a captcha) the live view takes over the same open session.
+ * "Sign in in the browser" skips straight to the live view.
+ */
+function CredentialSignIn({
+  site,
+  label,
+  onLive,
+  onSaved,
+  onClose,
+}: {
+  site: string;
+  label: string;
+  onLive: (session: SignInSession, intro?: string) => void;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const signIn = useMutation({
+    mutationFn: () => submitSignIn(site, { email, password }),
+    onSuccess: (res) => {
+      if (res.signed_in) {
+        toast.success("Signed in. Cookies saved.");
+        onSaved();
+        onClose();
+        return;
+      }
+      if (res.session) {
+        onLive(res.session, res.message);
+        return;
+      }
+      toast.error(res.message);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 503) {
+        toast.error("The browser is not running.");
+        return;
+      }
+      toast.error(errorDetail(err));
+    },
+  });
+
+  const live = useMutation({
+    mutationFn: () => startSignIn(site),
+    onSuccess: (session) => onLive(session),
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 503) {
+        toast.error("The browser is not running.");
+        return;
+      }
+      toast.error(errorDetail(err));
+    },
+  });
+
+  const busy = signIn.isPending || live.isPending;
+  const ready = email.trim().length > 0 && password.length > 0;
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (ready && !busy) signIn.mutate();
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Sign in to ${label}`}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/85 p-4 sm:p-6"
+    >
+      <form
+        onSubmit={onSubmit}
+        className="mt-[8vh] w-full max-w-sm rounded-lg border border-border bg-card p-4"
+      >
+        <h2 className="text-[13px] font-medium text-foreground">Sign in to {label}</h2>
+        <p className="mt-0.5 text-muted-foreground">
+          Your details are used once to sign in. They are not stored.
+        </p>
+
+        <label className="mt-3 block">
+          <span className="text-xs text-muted-foreground">Email</span>
+          <Input
+            type="email"
+            autoComplete="username"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full"
+          />
+        </label>
+        <label className="mt-2 block">
+          <span className="text-xs text-muted-foreground">Password</span>
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 w-full"
+          />
+        </label>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => live.mutate()}
+          >
+            {live.isPending && <Spinner className="size-3.5" />}
+            Sign in in the browser
+          </Button>
+          <div className="flex gap-1.5">
+            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={busy || !ready}>
+              {signIn.isPending && <Spinner className="size-3.5" />}
+              Sign in
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function credentialBadge(row: CredentialRow): { label: string; tone: BadgeTone } {
   if (!row.set) return { label: "not set", tone: "idle" };
   if (row.check_ok === true) return { label: "signed in", tone: "ok" };
@@ -1090,7 +1224,11 @@ function credentialBadge(row: CredentialRow): { label: string; tone: BadgeTone }
 function CredentialItem({ row }: { row: CredentialRow }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
+  // the email/password step, and the live view it can hand off to (with the
+  // note that says why the live view appeared)
+  const [signingIn, setSigningIn] = useState(false);
   const [session, setSession] = useState<SignInSession | null>(null);
+  const [intro, setIntro] = useState<string | undefined>(undefined);
   const badge = credentialBadge(row);
   const canSignIn = row.site in signInTitles;
 
@@ -1099,7 +1237,15 @@ function CredentialItem({ row }: { row: CredentialRow }) {
     void queryClient.invalidateQueries({ queryKey: ["status"] });
   };
 
+  const closeCreds = useCallback(() => setSigningIn(false), []);
   const closeSignIn = useCallback(() => setSession(null), []);
+
+  // the fast path or the live view lands on the same open session; take over
+  const goLive = useCallback((next: SignInSession, note?: string) => {
+    setSigningIn(false);
+    setIntro(note);
+    setSession(next);
+  }, []);
 
   // the same refresh as a pasted sign-in: the finish requeued blocked links
   // and cleared the source errors, and both are counted on the dashboard
@@ -1107,18 +1253,6 @@ function CredentialItem({ row }: { row: CredentialRow }) {
     void queryClient.invalidateQueries({ queryKey: ["sources"] });
     void queryClient.invalidateQueries({ queryKey: ["status"] });
   }, [queryClient]);
-
-  const open = useMutation({
-    mutationFn: () => startSignIn(row.site),
-    onSuccess: (res) => setSession(res),
-    onError: (err) => {
-      if (err instanceof ApiError && err.status === 503) {
-        toast.error("The browser is not running.");
-        return;
-      }
-      toast.error(errorDetail(err));
-    },
-  });
 
   const save = useMutation({
     mutationFn: () => saveCredential(row.site, value.trim()),
@@ -1150,7 +1284,7 @@ function CredentialItem({ row }: { row: CredentialRow }) {
     onError: (err) => toast.error(errorDetail(err)),
   });
 
-  const busy = save.isPending || check.isPending || drop.isPending || open.isPending;
+  const busy = save.isPending || check.isPending || drop.isPending;
 
   return (
     <li className="border-b border-border px-4 py-3 last:border-0">
@@ -1205,8 +1339,7 @@ function CredentialItem({ row }: { row: CredentialRow }) {
             Test
           </Button>
           {canSignIn && (
-            <Button disabled={busy} onClick={() => open.mutate()}>
-              {open.isPending && <Spinner className="size-3.5" />}
+            <Button disabled={busy} onClick={() => setSigningIn(true)}>
               Sign in
             </Button>
           )}
@@ -1216,8 +1349,23 @@ function CredentialItem({ row }: { row: CredentialRow }) {
         </div>
       </div>
 
+      {signingIn && (
+        <CredentialSignIn
+          site={row.site}
+          label={row.label}
+          onLive={goLive}
+          onSaved={savedSignIn}
+          onClose={closeCreds}
+        />
+      )}
+
       {session && (
-        <SignInModal session={session} onClose={closeSignIn} onSaved={savedSignIn} />
+        <SignInModal
+          session={session}
+          intro={intro}
+          onClose={closeSignIn}
+          onSaved={savedSignIn}
+        />
       )}
     </li>
   );

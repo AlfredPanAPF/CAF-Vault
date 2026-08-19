@@ -1,20 +1,31 @@
-"""Sign-in sessions: the site's login page, live, inside the sidecar (build
-spec v4 §7 and §10c).
+"""Sign-in sessions: the site's login page inside the sidecar (build spec v4
+§7, §10c, §10d, §10f).
 
 FT and WSJ cookies used to be harvested in a headed browser on the owner's Mac
-and pasted into the Sign-ins card. This does the same job from the app: a
-session opens a page on the site's login form inside `caf-cloakbrowser`, the
-sources page shows JPEG frames of it and forwards clicks, keys and scrolls, and
-Done reads the context's cookies and stores them as the site's credential. It
-is the browser the fetchers already use, with the same fingerprint seed, so the
-session signed into here is the session that later loads articles.
+and pasted into the Sign-ins card. This does the same job from the app, two
+ways over one session opened on the site's login form inside `caf-cloakbrowser`:
+
+- Fast path (§10f): the analyst enters their email and password, the server
+  types them into the login form and waits for the session cookie to appear.
+  Nothing feeds back a frame; the page shows a spinner and, on success, the
+  row goes green. The email and password are used once to fill the form and
+  are never stored or logged.
+- Live view (§10d), the fallback: the sources page shows JPEG frames of the
+  page and forwards clicks, keys and scrolls, and Done reads the cookies. The
+  fast path drops into this the moment the site asks for something it cannot
+  type for them (a one-time code, a captcha) or the form is not where it
+  expected: the same open session becomes the live view, at whatever step the
+  site is on.
+
+It is the browser the fetchers already use, with the same fingerprint seed, so
+the session signed into here is the session that later loads articles.
 
 Playwright's async API, because these are async endpoints and the browser
 objects have to stay on the event loop that made them. Sessions live in the web
 process (one uvicorn worker), at most one per site, viewport 1280x800, closed
-after 20 minutes idle. Nothing here logs a cookie value, or a whole exception:
-a Playwright error quotes the page it choked on, and a login page carries what
-was typed into it.
+after 20 minutes idle. Nothing here logs a cookie value, a password, or a whole
+exception: a Playwright error quotes the page it choked on, and a login page
+carries what was typed into it.
 """
 import asyncio
 import base64
@@ -60,6 +71,30 @@ FOREVER = 2147483647          # cookies.txt has no "session cookie" column
 CONNECT_TIMEOUT_MS = 20_000
 NAV_TIMEOUT_MS = 45_000
 
+# Fast path (§10f): fill the login form, then poll the context for the session
+# cookie. FIELD_MS is how long the email field is waited for; STEP_MS the jump
+# from an email-only first step to the password field; SUBMIT_POLLS × POLL_S
+# the wait for the cookie after the form is sent (a slow login, a redirect
+# chain). The form fields, by the attributes login pages actually use, most
+# specific first; `_fill_login` takes the first match.
+FIELD_MS = 15_000
+STEP_MS = 12_000
+SUBMIT_POLLS = 60
+POLL_S = 0.5
+EMAIL_SEL = ", ".join([
+    "input[type=email]", "input[name=email]", "input[name=username]",
+    "input[autocomplete=username]", "input[id*=email i]", "input[id*=username i]",
+])
+PASSWORD_SEL = ", ".join([
+    "input[type=password]", "input[name=password]",
+    "input[autocomplete=current-password]", "input[id*=password i]",
+])
+CONTINUE_SEL = ", ".join([
+    "button[type=submit]", "button[name=continue]", "button[id*=continue i]",
+    "button:has-text('Continue')", "button:has-text('Next')",
+    "button:has-text('Sign in')", "button:has-text('Log in')",
+])
+
 # keys the page may be sent: editing and navigation, plus one modifier and a
 # letter (select-all, copy, paste). Nothing that reaches the browser itself.
 KEYS = {"Enter", "Backspace", "Tab", "Escape", "Delete", "ArrowUp", "ArrowDown",
@@ -71,6 +106,8 @@ NOT_A_SITE = "No sign-in for that site."
 GONE = "That sign-in has ended."
 NO_PAGE = "The sign-in page did not respond. Try again."
 NO_COOKIE = "No session cookie yet. Finish signing in first."
+NEED_LOGIN = "Enter your email and password."
+NEEDS_VIEW = "The site needs another step. Finish signing in here."
 
 
 @dataclass
@@ -216,15 +253,14 @@ async def _open(site: str) -> Session:
                    context=ctx, page=page, created=at, last_used=at)
 
 
-async def start(site: str) -> dict:
-    """Open the sign-in for `site`, or hand back the one already open."""
-    await sweep()
-    if site not in SITES:
-        raise HTTPException(400, NOT_A_SITE)
+async def _ensure_session(site: str) -> tuple[Session, bool]:
+    """A registered session for the site: the one already open, or a freshly
+    opened and registered one on the login page. Returns (session, resumed).
+    The caller has swept and checked the site."""
     live = _for_site(site)
     if live is not None:
         live.last_used = now()
-        return await _describe(live, resumed=True)
+        return live, True
     if async_playwright is None or not browser.enabled():
         raise HTTPException(503, BROWSER_DOWN)
     session = await _open(site)
@@ -232,9 +268,116 @@ async def start(site: str) -> dict:
     if live is not None:          # two clicks raced the connect; keep the first
         await _close(session)
         live.last_used = now()
-        return await _describe(live, resumed=True)
+        return live, True
     _SESSIONS[session.id] = session
-    return await _describe(session, resumed=False)
+    return session, False
+
+
+async def start(site: str) -> dict:
+    """Open the sign-in for `site`, or hand back the one already open."""
+    await sweep()
+    if site not in SITES:
+        raise HTTPException(400, NOT_A_SITE)
+    session, resumed = await _ensure_session(site)
+    return await _describe(session, resumed=resumed)
+
+
+# ---------------------------------------------------------------- fast path
+
+
+async def _fill_login(page, email: str, password: str) -> None:
+    """Type the email and password into the login form and submit it. Handles
+    both a one-page form (both fields at once) and a two-step one (email,
+    then the password field appears). Raises when a field never turns up, so
+    the caller can hand back the live view at whatever step the page is on."""
+    email_field = page.locator(EMAIL_SEL).first
+    await email_field.wait_for(state="visible", timeout=FIELD_MS)
+    await email_field.fill(email)
+
+    password_field = page.locator(PASSWORD_SEL).first
+    if not await password_field.is_visible():
+        # a two-step form: move from the email step to the password one, by
+        # Enter first (most forms) and a Continue button if that did not take
+        try:
+            await email_field.press("Enter")
+            await password_field.wait_for(state="visible", timeout=STEP_MS)
+        except Exception:
+            button = page.locator(CONTINUE_SEL).first
+            if await button.is_visible():
+                await button.click()
+            await password_field.wait_for(state="visible", timeout=STEP_MS)
+    await password_field.fill(password)
+    await password_field.press("Enter")
+
+
+async def _wait_for_session_cookie(session: Session, spec) -> list[dict] | None:
+    """Poll the context for the site's cookies until the session cookie is
+    among them, or the tries run out. Returns the site's cookies, or None."""
+    for attempt in range(SUBMIT_POLLS):
+        try:
+            jar = await session.context.cookies()
+        except Exception as e:
+            print(f"signin: could not read the {session.site} cookies while "
+                  f"signing in ({type(e).__name__})")
+            return None
+        mine = [c for c in (jar or [])
+                if c.get("name") and _in_site(c.get("domain"), spec["hosts"])]
+        if any(str(c["name"]) in spec["session"] for c in mine):
+            return mine
+        if attempt + 1 < SUBMIT_POLLS:
+            await asyncio.sleep(POLL_S)
+    return None
+
+
+async def submit(site: str, email: str, password: str, con) -> dict:
+    """Fill the login form for `site` and wait for the session cookie. On
+    success the cookies are stored and the session closes; when the site needs
+    a step we cannot type for them (a code, a captcha) or the form was not
+    found, the session stays open and is handed back as the live view."""
+    await sweep()
+    if site not in SITES:
+        raise HTTPException(400, NOT_A_SITE)
+    email = (email or "").strip()
+    if not email or not password:
+        raise HTTPException(400, NEED_LOGIN)
+    spec = SITES[site]
+    session, resumed = await _ensure_session(site)
+
+    mine = None
+    async with session.lock:
+        # a resumed session may be anywhere; a fresh one already landed on the
+        # login page in _open
+        if resumed:
+            try:
+                await session.page.goto(spec["login"],
+                                        wait_until="domcontentloaded",
+                                        timeout=NAV_TIMEOUT_MS)
+            except Exception as e:
+                print(f"signin: the {site} login page did not settle "
+                      f"({type(e).__name__})")
+        try:
+            await _fill_login(session.page, email, password)
+            mine = await _wait_for_session_cookie(session, spec)
+        except HTTPException:
+            raise
+        except Exception as e:
+            # a field that never appeared, a challenge in the way: not an
+            # error, just the point where a person takes over
+            print(f"signin: the {site} form could not be filled "
+                  f"({type(e).__name__})")
+
+    if mine is not None:
+        await run_in_threadpool(_store, con, site, mine)
+        _SESSIONS.pop(session.id, None)
+        await _close(session)
+        print(f"signin: stored {len(mine)} cookies for {site} (fast path)")
+        return {"ok": True, "signed_in": True, "cookies": len(mine),
+                "message": f"Saved the {spec['name']} sign-in."}
+
+    session.last_used = now()
+    described = await _describe(session, resumed=False)
+    return {"ok": True, "signed_in": False, "needs_view": True,
+            "session": described, "message": NEEDS_VIEW}
 
 
 async def frame(session_id) -> dict:
@@ -378,11 +521,20 @@ def netscape(cookies: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _store(con, site: str, mine: list[dict]) -> None:
+    """The database half, off the loop: requeueing a big backlog of blocked
+    links and committing it would otherwise stall every other request,
+    including the frame polls of a sign-in still open on the other site."""
+    from . import webapp  # local import: webapp imports this module
+    credentials.set(con, site, netscape(mine))
+    webapp.credential_saved(con, site)
+    con.commit()
+
+
 async def finish(session_id, con) -> dict:
     """Read the site's cookies out of the context and store them as the
     credential. Without the session cookie there is nothing worth storing, so
     the session stays open and says so."""
-    from . import webapp  # local import: webapp imports this module
     await sweep()
     session = _get(session_id)
     spec = SITES[session.site]
@@ -401,15 +553,7 @@ async def finish(session_id, con) -> dict:
         return {"ok": False, "cookies": len(mine), "signed_in": False,
                 "message": NO_COOKIE}
 
-    def store():
-        """The database half, off the loop: requeueing a big backlog of blocked
-        links and committing it would otherwise stall every other request,
-        including the frame polls of the sign-in still open on the other site."""
-        credentials.set(con, session.site, netscape(mine))
-        webapp.credential_saved(con, session.site)
-        con.commit()
-
-    await run_in_threadpool(store)
+    await run_in_threadpool(_store, con, session.site, mine)
     _SESSIONS.pop(session.id, None)
     await _close(session)
     print(f"signin: stored {len(mine)} cookies for {session.site}")
