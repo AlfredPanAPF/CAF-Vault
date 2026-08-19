@@ -4,6 +4,11 @@ One row per site in the `credential` table: a cookies.txt export (FT, WSJ,
 Substack, YouTube) or a bearer token (X). Values are read by the fetchers and
 connectors; the API only ever reports whether a value is set and how the last
 live check went. Nothing here logs or returns a value.
+
+`credential_session` holds what a credential is turned into per host (build
+spec v4 §3.4): a Substack custom domain runs its own session, minted from the
+stored sid by graph/substack_session.py and kept here under the publication
+host. Same rules: never logged, never returned, scrubbed from every message.
 """
 from datetime import timezone
 
@@ -49,6 +54,17 @@ SITE_HOSTS = {
 
 class InvalidCredential(ValueError):
     pass
+
+
+def substack_jar(value: str) -> dict[str, str]:
+    """The cookies a stored Substack paste sends to substack.com hosts: the
+    substack.com cookies plus the two flags the rss-bridge SubstackBridge
+    sends alongside the sid (docs/rss-bridge-brief)."""
+    jar = cookie_jar(value, host="substack.com", site="substack")
+    if "substack.sid" in jar:
+        jar.setdefault("substack.lli", "1")
+        jar.setdefault("ab_experiment_sampled", "%22false%22")
+    return jar
 
 
 # ---------------------------------------------------------------- parsing
@@ -157,10 +173,15 @@ def scrub(con, text: str) -> str:
     out = str(text or "")
     if con is None or not out:
         return out
-    try:
-        rows = con.execute("select value from credential").fetchall()
-    except Exception:
-        return out
+    rows = []
+    for table in ("credential", "credential_session"):
+        try:
+            # own savepoint per table: one missing (pre-migration) must not
+            # stop the other being scrubbed nor abort the caller's transaction
+            with con.transaction():
+                rows.extend(con.execute(f"select value from {table}").fetchall())
+        except Exception:
+            continue
     secrets = []
     for row in rows:
         value = (row["value"] or "").strip()
@@ -204,6 +225,9 @@ def set(con, site: str, value: str, note: str | None = None) -> None:  # noqa: A
         parse_cookies(stored)
     else:
         stored = bearer_token(value)
+    # sessions minted from the previous value go with it: the next fetch that
+    # needs one mints it from the new paste
+    con.execute("delete from credential_session where site=%s", (site,))
     con.execute(
         "insert into credential (site, kind, value, note, updated_at, "
         "checked_at, check_ok, check_message) "
@@ -215,8 +239,67 @@ def set(con, site: str, value: str, note: str | None = None) -> None:  # noqa: A
 
 
 def delete(con, site: str) -> bool:
+    # credential_session rows go with the credential (on delete cascade)
     cur = con.execute("delete from credential where site=%s", (site,))
     return cur.rowcount > 0
+
+
+# ------------------------------------------------------- derived sessions
+
+
+def session_get(con, site: str, host: str) -> dict | None:
+    """The host's derived session row with three verdicts computed in SQL:
+    `live` (a value that has not expired), `current` (live, or a recorded
+    failure whose retry time has not come) and `fresh` (written or touched
+    within the last hour: a paid post that comes back cut that soon after is
+    the account not subscribing, not the session, so it is not re-minted)."""
+    return con.execute(
+        "select value, updated_at, expires_at, "
+        "(value <> '' and (expires_at is null or expires_at > now())) as live, "
+        "(expires_at is null or expires_at > now()) as current, "
+        "updated_at > now() - interval '60 minutes' as fresh "
+        "from credential_session where site=%s and host=%s",
+        (site, host.lower())).fetchone()
+
+
+def session_set(con, site: str, host: str, value: str,
+                expires_at=None, retry_minutes: int | None = None) -> None:
+    """Store a host's derived session (cookie header form), or with `value`
+    empty the fact that minting one failed, to be retried after
+    `retry_minutes`."""
+    if value:
+        con.execute(
+            "insert into credential_session (site, host, value, updated_at, expires_at) "
+            "values (%s, %s, %s, now(), %s) on conflict (site, host) do update set "
+            "value=excluded.value, updated_at=now(), expires_at=excluded.expires_at",
+            (site, host.lower(), value, expires_at))
+    else:
+        con.execute(
+            "insert into credential_session (site, host, value, updated_at, expires_at) "
+            "values (%s, %s, '', now(), now() + make_interval(mins => %s)) "
+            "on conflict (site, host) do update set value='', updated_at=now(), "
+            "expires_at=excluded.expires_at",
+            (site, host.lower(), int(retry_minutes or 15)))
+
+
+def session_touch(con, site: str, host: str) -> None:
+    """Mark the host's stored session as just looked at (`fresh` again for
+    an hour) without touching its value: a re-mint that failed must not cost
+    a session that still works, nor be repeated every poll."""
+    con.execute("update credential_session set updated_at=now() "
+                "where site=%s and host=%s", (site, host.lower()))
+
+
+def session_jar(con, site: str, host: str) -> dict[str, str]:
+    """{name: value} of the host's live derived session, else {}."""
+    row = session_get(con, site, host)
+    if not row or not row["live"]:
+        return {}
+    try:
+        # the value was stored for this host: no domain filtering
+        return cookie_jar(row["value"])
+    except InvalidCredential:
+        return {}
 
 
 def record_check(con, site: str, ok: bool, message: str) -> None:

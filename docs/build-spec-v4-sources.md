@@ -268,6 +268,55 @@ def get(url, *, site=None, con=None, timeout=30, max_bytes=2_000_000,
 
 ---
 
+### 3.4 Substack custom-domain sessions (2026-08-19, built)
+
+The §3.2 assumption that the substack.com sid is honoured on every
+publication host held for `*.substack.com` and failed live for a publication
+on its own domain: `newsletter.semianalysis.com/api/v1/user/profile/self`
+answers 401 to the sid that `substack.com/api/v1/user/profile/self` accepts,
+so the probe read a paid post as an anonymous reader and reported "no paid
+subscription there" for an account that pays. A custom domain is the same
+backend with its own session; a browser signed in on substack.com gets in
+through Substack's cross-domain sign-in, which `graph/substack_session.py`
+now performs once per host:
+
+1. `GET <origin>/account/login?redirect=/` → 301 to
+   `substack.com/sign-in?redirect=/&for_pub=<slug>&change_user=false`; the
+   slug is the publication's Substack subdomain.
+2. `GET substack.com/sign-in?redirect=<origin>/&for_pub=<slug>` with the
+   stored sid → 303 to `<origin>/api/v1/sign-in/local/complete?token=…`
+   (a 200 is the sign-in page: the sid is dead).
+3. `GET` that URL → 303 to `<origin>/` with `Set-Cookie: connect.sid=…`
+   (Path=/, ~90 days) for the publication host. That cookie is the session:
+   `profile/self` 200 for the same user, `/api/v1/subscription`
+   `membership_state: subscribed`, paid post whole (10,538 of 10,638 words
+   against 8,463 for the preview).
+
+Storage: `credential_session (site, host, value, updated_at, expires_at)`
+(schema 011), `on delete cascade` from `credential`, cleared by
+`credentials.set` (sessions minted from the old paste go with it), included
+in `credentials.scrub`. `fetch._cookies_for` sends the substack.com jar to
+substack.com hosts and the host's stored session to any other host; nothing
+stored means the fetch goes out anonymous. `rss.substack_post_json` calls
+`substack_session.ensure` before a signed fetch (mint when no current row)
+and `refresh` when a paid post comes back cut (re-mint unless the row is
+under an hour old, then fetch once more). A mint that fails leaves a live
+session in place (only its hour clock restarts: one bad hop must not cost a
+working cookie) and otherwise stores an empty row with `expires_at = now()
++ 15 min` so polling does not repeat the handshake; the Sign-ins Test calls
+`mint` itself so a human retry is never held by that backoff. The table
+write runs in its own savepoint (a failure there is logged, never aborts
+the poll's transaction). Every step goes through `fetch.get` (private-network guard,
+`allow_redirects=False`; each Location is checked for the host it must be
+on). `fetch.Response` gained `cookies` / `cookie_expires` for this: the
+merged `set-cookie` header cannot be split back apart.
+
+Probe (`probes.py`): unchanged verdicts, plus "Signed in on substack.com,
+but {publication} did not accept the sign-in this time. Try again in a
+moment." when the reader API says the sid is live but no session could be
+minted for a custom domain. Tests: `tests/test_substack_session.py`,
+`test_substack_probe_signs_in_to_the_custom_domain`.
+
 ## 4. URL router — graph/router.py (new)
 
 ```python

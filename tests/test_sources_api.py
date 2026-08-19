@@ -9,11 +9,12 @@ against the pasted secret: a credential value must never leave the API.
 import argparse
 import json
 import uuid
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
 
-from graph import cli, credentials, fetch, probes, router, webapp
+from graph import cli, credentials, fetch, probes, router, substack_session, webapp
 from graph.connectors import links
 
 # a cookies.txt export and a bearer token; the values must never come back
@@ -41,11 +42,13 @@ def article_html(marker="chips", title="Chips and the grid"):
 class FakeResponse:
     """The little of graph.fetch.Response the link queue reads."""
 
-    def __init__(self, text, status=200):
+    def __init__(self, text, status=200, headers=None, cookies=None):
         self.text = text
         self.status = status
         self.bytes = text.encode("utf-8")
-        self.headers = {}
+        self.headers = dict(headers or {})
+        self.cookies = dict(cookies or {})
+        self.cookie_expires = {}
 
     @property
     def ok(self):
@@ -453,11 +456,14 @@ def substack_json(body_html, audience="only_paid", wordcount=None):
 
 
 def substack_net(post_answer, anonymous_answer=None, reader_answer=None,
-                 calls=None):
+                 calls=None, handshake="ok"):
     """fetch.get for the Substack probe: the post API with the cookie
     (`site="substack"`) and without it (`site=None`; the same answer unless
-    `anonymous_answer` says otherwise), the reader API, and the router's
-    Substack detection for a custom domain (`x-cluster` on /feed). `calls`
+    `anonymous_answer` says otherwise), the reader API, the router's
+    Substack detection for a custom domain (`x-cluster` on /feed), and the
+    cross-domain sign-in a custom domain takes (substack_session.py):
+    `handshake="ok"` mints a connect.sid for the host, "dead" answers
+    substack.com's sign-in page (the sid no longer signs in). `calls`
     collects (url, site) for every fetch; the probe swallows exceptions from
     the reader fetch, so a test that wants to know the reader API was not
     asked must look there rather than raise from here."""
@@ -478,8 +484,27 @@ def substack_net(post_answer, anonymous_answer=None, reader_answer=None,
             r = FakeResponse("<rss/>")
             r.headers = {"content-type": "application/xml", "x-cluster": "substack"}
             return r
+        host = urlsplit(url).hostname
+        if url.endswith("/account/login?redirect=%2F"):
+            return FakeResponse("", status=301, headers={
+                "location": "https://substack.com/sign-in?redirect=%2F"
+                            f"&for_pub={host.split('.')[0]}&change_user=false"})
+        if url.startswith(substack_session.SIGN_IN + "?"):
+            if handshake != "ok":
+                return FakeResponse("<html>Sign in</html>")
+            pub = parse_qs(urlsplit(url).query)["redirect"][0]
+            assert kw.get("cookies", {}).get("substack.sid"), "the sid goes with the sign-in"
+            return FakeResponse("", status=303, headers={
+                "location": f"{pub}api/v1/sign-in/local/complete?token=t0k&redirect={pub}"})
+        if "/api/v1/sign-in/local/complete" in url:
+            return FakeResponse("", status=303, headers={"location": f"https://{host}/"},
+                                cookies={"connect.sid": f"s%3Asession-for-{host}"})
         raise AssertionError(f"unexpected fetch {url}")
     return get
+
+
+def handshake_calls(calls):
+    return [u for u, _site in calls if "/sign-in" in u or "/account/login" in u]
 
 
 def reader_calls(calls):
@@ -552,6 +577,62 @@ def test_substack_post_ref_reads_pasted_links(con, monkeypatch):
         probes.substack_post_ref("https://www.letter.news/p/the-post", con=con)
     assert str(e.value) == ("Could not reach www.letter.news to check the link. "
                             "Try again in a moment.")
+
+
+def test_substack_probe_signs_in_to_the_custom_domain(con, monkeypatch):
+    """letter.example.com is a publication on its own domain: the pasted sid
+    does not sign in there, so the probe's signed fetch first mints the host's
+    own session through Substack's cross-domain sign-in (substack_session.py)
+    and keeps it; the verdicts then read the post as before."""
+    credentials.set(con, "substack", "sid-value")
+    preview = FakeResponse(substack_json("<p>Just the preview.</p>", wordcount=400))
+    calls = []
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST, wordcount=400)),
+        anonymous_answer=preview, calls=calls))
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+    assert len(handshake_calls(calls)) == 3          # login redirect, sign-in, complete
+    assert post_calls(calls) == ["substack", None]
+    assert credentials.session_jar(con, "substack", "letter.example.com") == \
+        {"connect.sid": "s%3Asession-for-letter.example.com"}
+    # the session is kept: the next probe (and every poll) reads the table
+    calls.clear()
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+    assert handshake_calls(calls) == []
+    # substack.com still signs in but the publication host did not take the
+    # hand-over: the verdict is about the handshake, not the subscription
+    credentials.set(con, "substack", "sid-value")     # drops the stored session
+    monkeypatch.setattr(fetch, "get", substack_net(
+        preview, reader_answer=FakeResponse('{"posts": []}'), handshake="dead"))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False
+    assert message == ("Signed in on substack.com, but letter.example.com did not "
+                       "accept the sign-in this time. Try again in a moment.")
+    # the failure is on record (polling backs off for a while), but Test is a
+    # human asking: pressing it again runs the hand-over at once
+    assert credentials.session_jar(con, "substack", "letter.example.com") == {}
+    calls.clear()
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST, wordcount=400)),
+        anonymous_answer=preview, calls=calls))
+    assert probes.run(con, "substack", url=PAID_POST) == (True, "Signed in.")
+    assert len(handshake_calls(calls)) == 3
+    # ... and a dead sid is reported as such whatever the host said
+    credentials.set(con, "substack", "sid-value")
+    monkeypatch.setattr(fetch, "get", substack_net(
+        preview, handshake="dead",
+        reader_answer=FakeResponse('{"errors":[{"msg":"Please sign in"}]}', status=401)))
+    ok, message = probes.run(con, "substack", url=PAID_POST)
+    assert ok is False and "no longer valid" in message
+    # a publication on substack.com takes the sid as is: no handshake at all
+    credentials.set(con, "substack", "sid-value")
+    calls.clear()
+    monkeypatch.setattr(fetch, "get", substack_net(
+        FakeResponse(substack_json(FULL_POST, wordcount=400)),
+        anonymous_answer=preview, calls=calls))
+    assert probes.run(con, "substack",
+                      url="https://letter.substack.com/p/the-paid-post") == (True, "Signed in.")
+    assert handshake_calls(calls) == []
 
 
 def test_substack_probe_reads_the_pasted_paid_post(con, monkeypatch):

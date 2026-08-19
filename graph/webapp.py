@@ -1318,8 +1318,10 @@ def create_app():
         try:
             ok, message = probes.run(con, site, url=body.url if body else None)
         except probes.BadLink as e:
-            # the link could not test anything, so nothing is recorded: the
-            # badge keeps saying what the last real check found
+            # the link could not test anything, so no check is recorded: the
+            # badge keeps saying what the last real check found. A session the
+            # probe minted on the way (substack_session.py) is a cache, kept.
+            con.commit()
             raise HTTPException(400, str(e)) from None
         credentials.record_check(con, site, ok, message)
         con.commit()

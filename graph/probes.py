@@ -31,7 +31,7 @@ learned about the sign-in.
 import json
 from urllib.parse import urlsplit, urlunsplit
 
-from . import credentials, fetch, router
+from . import credentials, fetch, router, substack_session
 from .connectors import manual, rss
 from .connectors import x as x_connector
 from .connectors import youtube as youtube_connector
@@ -61,6 +61,11 @@ UNREACHABLE = "Could not reach {host} to check the link. Try again in a moment."
 NOT_SUBSCRIBED = ("Signed in, but {publication} still sent the preview: this "
                   "account has no paid subscription there. Test with a post "
                   "from a publication it pays for.")
+# a publication on its own domain takes a session of its own, minted from the
+# sid (substack_session.py); when that did not take while substack.com still
+# signs in, the verdict is about the handshake, not the subscription
+NO_HOST_SESSION = ("Signed in on substack.com, but {publication} did not accept "
+                   "the sign-in this time. Try again in a moment.")
 SAME_WITHOUT = ("That post reads the same without the sign-in, so it cannot show "
                 "whether the sign-in works. Paste a link to a post with text "
                 "behind the paywall.")
@@ -198,6 +203,12 @@ def _substack_probe(con, url) -> tuple[bool, str]:
     simply not subscribed here or the post has no text behind its wall."""
     origin, slug = substack_post_ref(url, con=con)
     host = urlsplit(origin).hostname or origin
+    # a publication on its own domain takes a session minted from the sid
+    # (substack_session.py); Test is a human asking, so it runs the hand-over
+    # itself when none is stored, past the backoff a failed one leaves behind
+    if substack_session.is_custom(host) and \
+            not credentials.session_jar(con, "substack", host):
+        substack_session.mint(con, origin)
     try:
         signed = rss.substack_post_json(con, origin, slug)
     except RuntimeError as e:
@@ -220,6 +231,9 @@ def _substack_probe(con, url) -> tuple[bool, str]:
                       "again and paste a fresh substack.sid")
     if rss.substack_preview(signed):
         if session is True:
+            if substack_session.is_custom(host) and \
+                    not credentials.session_jar(con, "substack", host):
+                return False, NO_HOST_SESSION.format(publication=host)
             return False, NOT_SUBSCRIBED.format(publication=host)
         return failed("the post came back as a preview")
     raise BadLink(SAME_WITHOUT)

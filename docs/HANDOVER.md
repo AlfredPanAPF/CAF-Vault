@@ -113,11 +113,12 @@ the `claim_asserted` view, not in prompts).
 - Unregistered companies dedup across documents (created-entity resolve tier
   + get-or-create on `new_entity`) so attribute joins can see a shared
   supplier — the design §8.8 case.
-- **Schema** (`schema/001-009`): the design's invariants live here — claims
+- **Schema** (`schema/001-011`): the design's invariants live here — claims
   append-only with supersede/retract, reversible merges via `entity_same_as`,
   the asserted/inferred firewall view (007 refreshes it for the 003 columns),
-  versioned `predicate_map`, ops + alert + contradiction + review tables.
-- 199 tests after v4 (`uv run pytest`, one shared DB — new tests must scope assertions,
+  versioned `predicate_map`, ops + alert + contradiction + review tables,
+  sources v4 (010), per-host derived sessions (011).
+- 271 tests, 3 of them opt-in e2e (`uv run pytest`, one shared DB — new tests must scope assertions,
   earlier files commit rows), mocked-LLM end-to-end including the full
   discovery funnel. Local dev unchanged: brew postgres, `uv run graph migrate
   && uv run graph seed --sources`, `graph run`, `graph serve`.
@@ -152,9 +153,28 @@ the `claim_asserted` view, not in prompts).
      pages are blocked"; those feeds ingest headline + teaser as thin
      events); a Test button runs a live probe (FT: `session-next.ft.com`
      liveness first, so a live cookie behind the wall is reported as such).
-     Values never leave the API. Substack sends `substack.sid` to the
-     publication host (custom domains too), the rss-bridge SubstackBridge
-     trick, and accepts a bare sid paste. Its Test runs against a link the
+     Values never leave the API. Substack sends `substack.sid` to
+     substack.com hosts, the rss-bridge SubstackBridge trick, and accepts a
+     bare sid paste. A publication on its own domain
+     (newsletter.semianalysis.com) does NOT honour that sid (its API answers
+     401 to it, verified 2026-08-19): it runs its own session, which
+     `graph/substack_session.py` mints from the sid through Substack's
+     cross-domain sign-in (`<origin>/account/login` → 301 names the
+     `for_pub` slug; `substack.com/sign-in?redirect=<origin>/&for_pub=` with
+     the sid → 303 to `<origin>/api/v1/sign-in/local/complete?token=`; that
+     → 303 with `Set-Cookie: connect.sid` for the host, ~90-day expiry) and
+     keeps per host in `credential_session` (schema 011; dropped when the
+     credential is replaced or deleted, scrubbed like the sid). The signed
+     post fetch (`rss.substack_post_json`) mints one when the host has none
+     and re-mints once when a paid post still comes back cut with a session
+     older than an hour; a failed mint never replaces a session that is still
+     live (its hour clock restarts instead) and, with none to keep, is not
+     retried for 15 minutes; the Test button runs the hand-over itself, past
+     that backoff. The table write is a savepoint of the caller's transaction
+     (a failure there cannot abort a poll); the row lock it takes is held to
+     the caller's commit, so a worker stage and a Test request minting the
+     same host at the same moment wait on each other, bounded by the probe
+     or the stage. Its Test runs against a link the
      analyst pastes into the row's link box (a paid post from a publication
      the account subscribes to; subscriptions are per publication, so no
      post the server picks proves anything): the post is fetched with the
@@ -163,7 +183,9 @@ the `claim_asserted` view, not in prompts).
      posts out whole, so a whole-looking body alone proves nothing). When it
      unlocks nothing, the reader API (401 = dead session) and the body's
      length against the post's own `wordcount` phrase the failure ("session
-     no longer valid" / "not subscribed there" / "came back as a preview"),
+     no longer valid" / "not subscribed there" / "did not accept the
+     sign-in" for a custom domain whose hand-over failed while substack.com
+     still signs in / "came back as a preview"),
      and a link that cannot test anything (free post, not a post, 404, host
      down, a post that reads the same without the sign-in) is a 400 with
      nothing recorded. Connector-side preview detection

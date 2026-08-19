@@ -18,6 +18,7 @@ them, and the check runs again on the final URL when a redirect moved hosts.
 import ipaddress
 import re
 import socket
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit
 
 from . import browser, credentials
@@ -53,13 +54,20 @@ class BlockedAddress(Exception):
 
 
 class Response:
-    __slots__ = ("status", "url", "bytes", "headers", "_text")
+    __slots__ = ("status", "url", "bytes", "headers", "cookies", "cookie_expires",
+                 "_text")
 
-    def __init__(self, status: int, url: str, data: bytes, headers: dict):
+    def __init__(self, status: int, url: str, data: bytes, headers: dict,
+                 cookies: dict | None = None, cookie_expires: dict | None = None):
         self.status = status
         self.url = url
         self.bytes = data
         self.headers = {k.lower(): v for k, v in (headers or {}).items()}
+        # cookies this answer set ({name: value}, {name: expiry epoch or
+        # None}); the merged set-cookie header in `headers` cannot be split
+        # back apart reliably
+        self.cookies = dict(cookies or {})
+        self.cookie_expires = dict(cookie_expires or {})
         self._text = None
 
     @property
@@ -248,19 +256,63 @@ def _cookies_for(con, site: str | None, url: str) -> dict[str, str]:
     host = urlsplit(url).hostname or ""
     try:
         if site == "substack":
-            # substack.sid is issued for substack.com but every publication
-            # (custom domains included) is one backend, and it honours the
-            # cookie on the publication host. Send substack.com's cookies to
-            # whatever Substack host we fetch, plus the two flags the
-            # rss-bridge SubstackBridge sends alongside (docs/rss-bridge-brief).
-            jar = credentials.cookie_jar(value, host="substack.com", site=site)
-            if "substack.sid" in jar:
-                jar.setdefault("substack.lli", "1")
-                jar.setdefault("ab_experiment_sampled", "%22false%22")
-            return jar
+            # substack.sid is issued for substack.com and honoured on
+            # *.substack.com publication hosts. A custom domain
+            # (newsletter.semianalysis.com) runs its own session and answers
+            # 401 to that sid; what it takes is the connect.sid the
+            # publication host issued through Substack's cross-domain sign-in,
+            # which substack_session.py mints from the stored sid and keeps in
+            # credential_session (build spec v4 §3.4). Nothing cached yet means
+            # the fetch goes out anonymous; rss.substack_post_json is where a
+            # session gets minted.
+            if host == "substack.com" or host.endswith(".substack.com"):
+                return credentials.substack_jar(value)
+            return credentials.session_jar(con, site, host)
         return credentials.cookie_jar(value, host=host, site=site)
     except credentials.InvalidCredential:
         return {}
+
+
+def _response_cookies(r) -> tuple[dict[str, str], dict[str, int | None]]:
+    """({name: value}, {name: expiry epoch or None}) of the cookies a client
+    response carries: curl_cffi's Cookies wraps a CookieJar in `.jar`,
+    requests' RequestsCookieJar is one."""
+    jar = getattr(r, "cookies", None)
+    if jar is None:
+        return {}, {}
+    values, expires = {}, {}
+    try:
+        for c in getattr(jar, "jar", jar):
+            values[c.name] = c.value
+            expires[c.name] = c.expires
+    except Exception:
+        try:
+            values = dict(jar)
+        except Exception:
+            values = {}
+    # curl_cffi's jar drops Expires; the raw set-cookie lines still carry it
+    if values and any(expires.get(n) is None for n in values):
+        try:
+            lines = r.headers.get_list("set-cookie")
+        except Exception:
+            lines = []
+        for line in lines or []:
+            name = line.split("=", 1)[0].strip()
+            if name in values and expires.get(name) is None:
+                expires[name] = _expires_of(line)
+    return values, expires
+
+
+def _expires_of(set_cookie_line: str) -> int | None:
+    """Expires= of one set-cookie line as an epoch, None when absent."""
+    for part in set_cookie_line.split(";")[1:]:
+        k, _, v = part.strip().partition("=")
+        if k.lower() == "expires" and v:
+            try:
+                return int(parsedate_to_datetime(v.strip()).timestamp())
+            except (TypeError, ValueError, OverflowError):
+                return None
+    return None
 
 
 def _read_capped(resp, max_bytes: int) -> bytes:
@@ -320,7 +372,8 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
                       stream=True)
         try:
             data = _read_capped(r, max_bytes)
-            resp = Response(r.status_code, str(r.url), data, dict(r.headers))
+            resp = Response(r.status_code, str(r.url), data, dict(r.headers),
+                            *_response_cookies(r))
         finally:
             r.close()
     else:
@@ -329,7 +382,8 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
                           stream=True)
         try:
             data = _read_capped(r, max_bytes)
-            resp = Response(r.status_code, r.url, data, dict(r.headers))
+            resp = Response(r.status_code, r.url, data, dict(r.headers),
+                            *_response_cookies(r))
         finally:
             r.close()
     # redirects are followed by the library, so the guard runs again whenever

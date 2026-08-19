@@ -29,7 +29,7 @@ from urllib.parse import urlsplit
 import requests
 from bs4 import BeautifulSoup
 
-from .. import credentials, envelope, fetch, router
+from .. import credentials, envelope, fetch, router, substack_session
 from .manual import extract_article, html_to_text
 from .podcast import HEADERS  # browser UA; many sites 403 the requests default
 
@@ -198,7 +198,23 @@ def substack_post_json(con, origin: str, slug: str, anonymous: bool = False) -> 
     """The post JSON from `<origin>/api/v1/posts/<slug>`, fetched with the
     Substack cookie unless `anonymous` (the probe compares the two). Raises
     RuntimeError("HTTP <n>") on a non-2xx answer and ValueError when the
-    answer is not a post."""
+    answer is not a post.
+
+    A publication on its own domain takes its own session, not the pasted
+    sid (build spec v4 §3.4): the signed fetch first makes sure one is stored
+    for the host, and a paid post that still comes back cut gets one more
+    fetch with a freshly minted session, in case the stored one had died.
+    A post that is still cut after that is the account not subscribing."""
+    signed = not anonymous and con is not None
+    if signed:
+        substack_session.ensure(con, origin)
+    data = _substack_post_json(con, origin, slug, anonymous)
+    if signed and substack_preview(data) and substack_session.refresh(con, origin):
+        data = _substack_post_json(con, origin, slug, anonymous)
+    return data
+
+
+def _substack_post_json(con, origin: str, slug: str, anonymous: bool) -> dict:
     url = f"{origin.rstrip('/')}/api/v1/posts/{slug}"
     r = fetch.get(url, site=None if anonymous else "substack", con=con,
                   timeout=30, allow_wall=True,
