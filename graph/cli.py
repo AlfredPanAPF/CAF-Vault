@@ -14,7 +14,7 @@ from . import config, credentials, db, er_norm, llm, router, watchlist
 from .connectors import bridge, edgar, links, manual, podcast, rss, x, youtube
 from .discovery import attribute_joins, funnel, hypothesize, investigate, verify, wake
 from .pipeline import (adjudicate, extract, gardener, materialize, quality,
-                       resolve, triage)
+                       resolve, summarize, triage)
 
 
 def cmd_migrate(args):
@@ -214,6 +214,13 @@ def cmd_resolve(args):
         print(out)
 
 
+def cmd_summarize(args):
+    with db.connect() as con:
+        out = _summarize_drain(con, limit=args.limit,
+                               requested_only=args.requested)
+        print(out)
+
+
 def cmd_adjudicate(args):
     with db.connect() as con:
         out = adjudicate.run(con, limit=args.limit)
@@ -265,6 +272,7 @@ def cmd_run(args):
             ("links", lambda: links.process(con)),
             ("triage", lambda: triage.run(con)),
             ("extract", lambda: extract.run(con, limit=args.limit)),
+            ("summarize", lambda: _summarize_drain(con)),
             ("resolve", lambda: resolve.run(con)),
             ("adjudicate", lambda: adjudicate.run(con)),
             ("garden", lambda: gardener.run(con)),
@@ -325,6 +333,36 @@ def _extract_drain(con, batch=10):
             return total
 
 
+SUMMARIZE_CHUNK = 5
+
+
+def _summarize_drain(con, limit=None, requested_only=False):
+    """Run summaries in chunks of SUMMARIZE_CHUNK, committing after each, up
+    to `limit` (default config.SUMMARIZE_PER_CYCLE) or until the stage pauses
+    or makes no progress. Small transactions: a page request that lands on
+    the row being written waits seconds, not a whole batch, and a worker
+    restart mid-way loses one chunk of model calls, not thirty."""
+    cap = config.SUMMARIZE_PER_CYCLE if limit is None else max(0, limit)
+    total = {"summarized": 0, "skipped": 0, "failed": 0, "paused": False,
+             "requested_left": 0}
+    done = 0
+    while done < cap:
+        out = summarize.run(con, limit=min(SUMMARIZE_CHUNK, cap - done),
+                            requested_only=requested_only)
+        con.commit()
+        for k in ("summarized", "skipped", "failed"):
+            total[k] += out[k]
+        progressed = out["summarized"] + out["skipped"] + out["failed"]
+        done += progressed
+        if out["paused"]:
+            total["paused"] = True
+            break
+        if progressed == 0:
+            break
+    total["requested_left"] = summarize.requested_count(con)
+    return total
+
+
 def _stage_begin(name):
     """Open a stage_run row on its own connection. Bookkeeping failures are
     logged and never block the stage itself."""
@@ -372,6 +410,35 @@ def _cycle_bookkeeping(interval_s):
             con.commit()
     except Exception as e:
         print(f"loop: heartbeat upsert failed ({e!r})")
+
+
+def _summaries_requested():
+    """How many page requests for a summary the stage can act on now."""
+    try:
+        with db.connect() as con:
+            return summarize.requested_count(con)
+    except Exception as e:
+        print(f"loop: summary request check failed ({e!r})")
+        return 0
+
+
+def _answer_summary_requests(stage, paused_until, now):
+    """One nap-loop tick (build spec v5 §4): when a page asked for a summary,
+    run the requested-only stage; back off five minutes when the engine is
+    paused, the stage errored, or the call cleared nothing (a request the
+    stage can never clear must not make the loop spin). Returns the new
+    paused_until."""
+    if now < paused_until:
+        return paused_until
+    waiting = _summaries_requested()
+    if not waiting:
+        return paused_until
+    out = stage("summarize", lambda con: _summarize_drain(
+        con, requested_only=True))
+    if (not isinstance(out, dict) or out.get("paused")
+            or out.get("requested_left", 0) >= waiting):
+        return now + 300
+    return paused_until
 
 
 def _run_requested():
@@ -432,9 +499,11 @@ def cmd_loop(args):
                 con.commit()
             print(f"{name}: {out}")
             _stage_finish(run_id, summary=out)
+            return out
         except Exception as e:
             print(f"{name}: ERROR {e!r}")
             _stage_finish(run_id, error=repr(e))
+            return None
 
     cycle = 0
     while True:
@@ -450,6 +519,7 @@ def cmd_loop(args):
         stage("links", lambda con: links.process(con))
         stage("triage", lambda con: triage.run(con))
         stage("extract", _extract_drain)
+        stage("summarize", _summarize_drain)
         stage("resolve", lambda con: resolve.run(con))
         stage("adjudicate", lambda con: adjudicate.run(con))
         stage("garden", lambda con: gardener.run(con))
@@ -465,6 +535,7 @@ def cmd_loop(args):
         _cycle_bookkeeping(args.interval)
         print(f"[loop] cycle {cycle} done — sleeping {args.interval}s")
         deadline = time.time() + args.interval
+        summaries_paused_until = 0.0
         while True:
             remaining = deadline - time.time()
             if remaining <= 0:
@@ -473,6 +544,10 @@ def cmd_loop(args):
             if _run_requested():
                 print("[loop] run requested — starting next cycle early")
                 break
+            # a summary asked for from the page is answered here, in about
+            # fifteen seconds, instead of at the next cycle (build spec v5 §4)
+            summaries_paused_until = _answer_summary_requests(
+                stage, summaries_paused_until, time.time())
 
 
 def main():
@@ -524,6 +599,12 @@ def main():
     s.set_defaults(func=cmd_extract)
 
     sub.add_parser("resolve", help="resolve pending mentions").set_defaults(func=cmd_resolve)
+
+    s = sub.add_parser("summarize", help="write document summaries (LLM)")
+    s.add_argument("--limit", type=int, default=None)
+    s.add_argument("--requested", action="store_true",
+                   help="only summaries asked for from the page")
+    s.set_defaults(func=cmd_summarize)
 
     s = sub.add_parser("adjudicate", help="LLM-adjudicate queued mentions")
     s.add_argument("--limit", type=int, default=20)

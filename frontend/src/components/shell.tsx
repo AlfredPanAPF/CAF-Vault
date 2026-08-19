@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Bell, Building2, Gauge, Lightbulb, ListChecks, Quote, Rss } from "lucide-react"
+import { Bell, Building2, FileText, Gauge, Lightbulb, ListChecks, Quote, Rss } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { apiFetch, type StatusResponse } from "@/lib/api"
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/", label: "Dashboard", icon: Gauge, end: true },
   { to: "/claims", label: "Claims", icon: Quote },
+  { to: "/documents", label: "Documents", icon: FileText },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/review", label: "Review", icon: ListChecks },
   { to: "/entities", label: "Entities", icon: Building2 },

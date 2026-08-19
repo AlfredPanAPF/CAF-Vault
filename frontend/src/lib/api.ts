@@ -215,6 +215,237 @@ export function unmergeEntity(entityId: string): Promise<{ ok: boolean }> {
   return apiFetch(`/api/entities/${entityId}/unmerge`, { method: "POST" });
 }
 
+// ─── /api/documents ──────────────────────────────────────────
+
+/** The feed, bucket or upload folder a document came from (spec v5 §5). */
+export interface DocumentSourceRef {
+  source_id: string;
+  name: string;
+  label: string;
+}
+
+/** One document in the list (spec v5 §5). `type` is the API's own label. */
+export interface DocumentRow {
+  event_id: string;
+  title: string;
+  connector: string;
+  type: string;
+  source: DocumentSourceRef;
+  site: string | null;
+  url: string | null;
+  published_at: string | null;
+  fetched_at: string;
+  status: string;
+  thin: boolean;
+  materiality: number | null;
+  claims: number;
+  entities: number;
+  summary_status: SummaryStatus;
+  summary: string | null;
+}
+
+export interface DocumentsResponse {
+  total: number;
+  documents: DocumentRow[];
+}
+
+/** A source facet for the list filter: every source with a document. */
+export interface DocumentSourceFacet {
+  source_id: string;
+  name: string;
+  connector: string;
+  label: string;
+  events: number;
+}
+
+export interface DocumentCopy {
+  event_id: string;
+  title: string;
+  source_name: string;
+  fetched_at: string;
+}
+
+export interface DocumentLineage {
+  lineage_id: string | null;
+  /** Set when this document is a copy of another one. */
+  root: { event_id: string; title: string } | null;
+  copies: DocumentCopy[];
+}
+
+/** Header facts the connector recorded; only present keys are sent. */
+export type DocumentFacts = Partial<
+  Record<
+    | "ticker"
+    | "form"
+    | "items"
+    | "accession"
+    | "feed"
+    | "channel"
+    | "username"
+    | "filename"
+    | "site"
+    | "bridge"
+    | "video_id",
+    string
+  >
+>;
+
+export interface DocumentDetailRow
+  extends Omit<DocumentRow, "summary_status" | "summary"> {
+  attempts: number;
+  last_error: string | null;
+  chars: number;
+  route: string | null;
+  facts: DocumentFacts;
+  lineage: DocumentLineage;
+  /** The document this one was matched to as a near duplicate, if any. */
+  near_duplicate_of: { event_id: string; title: string } | null;
+}
+
+/** "none" when the worker has not written a row yet (spec v5 §1). */
+export type SummaryStatus =
+  | "none"
+  | "requested"
+  | "pending"
+  | "done"
+  | "failed"
+  | "skipped";
+
+export interface DocumentSummary {
+  status: SummaryStatus;
+  summary: string | null;
+  key_points: string[];
+  model: string | null;
+  error: string | null;
+  requested_at: string | null;
+  updated_at: string | null;
+}
+
+export type MentionState =
+  | "resolved"
+  | "queued"
+  | "pending"
+  | "unresolved"
+  | "skipped";
+
+export interface DocumentMention {
+  mention_id: string;
+  surface: string;
+  state: MentionState;
+  entity: EntityPeer | null;
+  confidence: number | null;
+}
+
+export interface DocumentEntity {
+  entity_id: string;
+  name: string;
+  kind: string;
+  /** Ticker, else country, else "-" (the API's registry_short). */
+  registry: string;
+  /** The ticker alone, null when the company has none. */
+  ticker: string | null;
+  claims: number;
+  mentions: number;
+}
+
+/** An edge backed by at least one of this document's claims. */
+export interface DocumentEdge {
+  edge_id: string;
+  src: EntityPeer;
+  dst: EntityPeer;
+  predicate: string;
+  origin: string;
+  claims_here: number;
+  claims_total: number;
+  relevance: number;
+  archived: boolean;
+}
+
+export interface DocumentAlert {
+  alert_id: string;
+  kind: string;
+  title: string;
+  created_at: string;
+}
+
+export interface DocumentHypothesis {
+  hypothesis_id: string;
+  type: string;
+  state: string;
+  subjects: EntityPeer[];
+}
+
+export interface DocumentContradiction {
+  contradiction_id: string;
+  status: string;
+  predicate_canon: string;
+  subject: EntityPeer;
+}
+
+export interface DocumentResponse {
+  document: DocumentDetailRow;
+  summary: DocumentSummary;
+  claims: Claim[];
+  mentions: DocumentMention[];
+  entities: DocumentEntity[];
+  edges: DocumentEdge[];
+  alerts: DocumentAlert[];
+  hypotheses: DocumentHypothesis[];
+  contradictions: DocumentContradiction[];
+}
+
+/** The artifact: the connector header and the body, cut at 200k chars. */
+export interface DocumentText {
+  header: Record<string, string>;
+  body: string;
+  chars: number;
+  truncated: boolean;
+}
+
+export interface DocumentsQuery {
+  q?: string;
+  source?: string;
+  type?: string;
+  status?: string;
+  days?: string;
+  ticker?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function getDocuments(opts: DocumentsQuery = {}): Promise<DocumentsResponse> {
+  const params = new URLSearchParams();
+  if (opts.q) params.set("q", opts.q);
+  if (opts.source) params.set("source", opts.source);
+  if (opts.type) params.set("type", opts.type);
+  if (opts.status) params.set("status", opts.status);
+  if (opts.days) params.set("days", opts.days);
+  if (opts.ticker) params.set("ticker", opts.ticker);
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+  const qs = params.toString();
+  return apiFetch(`/api/documents${qs ? `?${qs}` : ""}`);
+}
+
+export function getDocumentSources(): Promise<DocumentSourceFacet[]> {
+  return apiFetch("/api/documents/sources");
+}
+
+export function getDocument(eventId: string): Promise<DocumentResponse> {
+  return apiFetch(`/api/documents/${eventId}`);
+}
+
+export function getDocumentText(eventId: string): Promise<DocumentText> {
+  return apiFetch(`/api/documents/${eventId}/text`);
+}
+
+/** Ask the worker for a summary; the web process never calls the model. */
+export function requestSummary(
+  eventId: string,
+): Promise<{ ok: boolean; status: SummaryStatus }> {
+  return apiFetch(`/api/documents/${eventId}/summarize`, { method: "POST" });
+}
+
 // ─── /api/hypotheses ─────────────────────────────────────────
 
 export interface Hypothesis {

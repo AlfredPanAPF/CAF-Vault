@@ -118,7 +118,7 @@ the `claim_asserted` view, not in prompts).
   the asserted/inferred firewall view (007 refreshes it for the 003 columns),
   versioned `predicate_map`, ops + alert + contradiction + review tables,
   sources v4 (010), per-host derived sessions (011).
-- 271 tests, 3 of them opt-in e2e (`uv run pytest`, one shared DB — new tests must scope assertions,
+- 281 tests, 3 of them opt-in e2e (`uv run pytest`, one shared DB — new tests must scope assertions,
   earlier files commit rows), mocked-LLM end-to-end including the full
   discovery funnel. Local dev unchanged: brew postgres, `uv run graph migrate
   && uv run graph seed --sources`, `graph run`, `graph serve`.
@@ -283,6 +283,67 @@ the `claim_asserted` view, not in prompts).
   `CAF_CLOAK_LICENSE_KEY` in the server `.env`. Deploy: Vault commit → submodule bump → `deploy-*` tag (the
   bridge image is pulled by `compose up`; its health check is part of the
   gate).
+
+- **Documents (2026-08-19, build spec v5 — `docs/build-spec-v5-documents.md`):**
+  the vault seen from one source item. The `event` row is the document; the
+  Sources page keeps "source" for feeds and the watchlist.
+  1. *Summaries* (`graph/pipeline/summarize.py`, prompt
+     `graph/prompts/summary.md`, schema 012 `document_summary`): one LLM
+     summary (two to four sentences + key points) per extracted document,
+     written by the worker stage `summarize` right after `extract`
+     (`CAF_VAULT_SUMMARIZE_PER_CYCLE`, default 30; `CAF_MODEL_SUMMARIZE`,
+     default sonnet; bodies under 600 chars are `skipped`, prompts cut at
+     80k chars). The worker runs it through `cli._summarize_drain`: chunks
+     of five, a commit after each, so a page request never waits on a
+     long batch and a restart loses one chunk at most. The row doubles as
+     the queue: `requested` (the page asked; served first, and between
+     cycles by the nap loop in about fifteen seconds; a requested row with
+     one strike waits five minutes for its second try; the loop backs off
+     five minutes when the engine is paused, the stage errors, or a call
+     clears nothing), `pending` (one automatic strike), `failed` (two),
+     `done`, `skipped`. Skipped and failed writes keep an existing summary
+     text. Copies (`duplicate` events) are never summarized. Engine
+     discipline as everywhere: `EngineUnavailable` pauses and burns
+     nothing. The web process never calls the model. Verified live locally
+     on the dev Mac: real documents (an FT upload, an NVDA 8-K, a pending
+     article requested from the page and picked up by `graph summarize
+     --requested` while the page polled) summarized in ~10 s each on the
+     local `claude` login, analyst-grade output.
+  2. *API* (`graph/webapp.py`): `GET /api/documents` (q, source, type,
+     status, days, ticker; the default view hides copies), `GET
+     /api/documents/sources` (every source with a document, buckets and
+     dropped feeds included), `GET /api/documents/{id}` (document facts,
+     lineage root/copies, summary, claims of every status, mentions with
+     resolution state, the companies it touches with merges folded, the
+     edges its claims back with claims-here/total and relevance, alerts,
+     hypotheses, contradictions), `GET /api/documents/{id}/text` (artifact
+     header + body, cut at 200k; the web reads artifacts through
+     `artifacts.read_bounded`, contained to `CAF_ARTIFACTS` and bounded in
+     memory), `POST /api/documents/{id}/summarize` (3 s lock timeout: a row
+     the worker is writing answers as requested). Uploads now store their
+     title in `event.meta`; one title rule everywhere (title, else
+     filename). Schema 013 indexes `mention(event_id)` and GIN on
+     `edge.claim_ids` / `hypothesis.evidence`. `split_artifact` parses
+     multi-line header values (Telegram titles through the bridge broke the
+     old line scanner).
+  3. *Frontend*: `pages/documents.tsx` (filter bar in URL params, summary
+     line under each title, Load more) and `pages/document.tsx` (Summary
+     with request/retry, Claims, Full text on demand, Companies, Links,
+     Details); "Documents" in the nav; claim doc titles, the dashboard
+     Documents counter and failed items, source Docs counts, link rows and
+     alerts all link into it.
+  4. Tests: `tests/test_documents_api.py` (list filters/order, facet, detail
+     shape incl. merged folding and lineage, text endpoint incl. containment
+     and multibyte counts, the summarize stage's states, pause semantics and
+     retry wait, the chunked drain, the nap-loop tick, the CLI) plus a
+     summarize case in `test_pipeline`. 281 tests (278 run by default, 3
+     opt-in e2e). Four old global
+     assertions in `tests/test_pipeline.py` were scoped to their own rows
+     (the shared test DB rule in CLAUDE.md); new test files must not leave
+     readable `pending` events behind. Built with a workflow: one frontend
+     build agent, four backend and three frontend review lenses, each
+     finding refuted by two skeptics; spec §7a lists what the review
+     changed.
 
 ## What still needs building (recommended order)
 

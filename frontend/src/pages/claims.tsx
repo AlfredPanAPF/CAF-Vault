@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
@@ -10,6 +11,7 @@ import {
   type SourcesResponse,
 } from "@/lib/api";
 import { fmtDate, fmtNum } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
@@ -87,7 +89,18 @@ function fmtConfidence(confidence: number): string {
   return String(Math.round(confidence * 100) / 100);
 }
 
-export function ClaimRow({ claim }: { claim: Claim }) {
+/** `showSource` off on the document page: the row is already under its
+ *  document (spec v5 §6); `className` lets a card align the row with its
+ *  own padding. */
+export function ClaimRow({
+  claim,
+  showSource = true,
+  className,
+}: {
+  claim: Claim;
+  showSource?: boolean;
+  className?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   // staleness-decayed value when the API provides it (spec v3 §5.3)
   const confidence = claim.confidence_now ?? claim.confidence;
@@ -97,7 +110,7 @@ export function ClaimRow({ claim }: { claim: Claim }) {
     expandable && !expanded ? `${quote.slice(0, QUOTE_LIMIT).trimEnd()}…` : quote;
 
   return (
-    <article className="border-b border-border px-6 py-3 last:border-0">
+    <article className={cn("border-b border-border px-6 py-3 last:border-0", className)}>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <EntityRef
           surface={claim.subject.surface}
@@ -121,46 +134,59 @@ export function ClaimRow({ claim }: { claim: Claim }) {
           <p className="mt-1 leading-relaxed text-foreground/80">“{shown}”</p>
         ))}
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-        {claim.source_name && <span>{claim.source_name}</span>}
-        {claim.doc_title && (
-          <>
-            <Dot />
-            <span className="max-w-72 truncate">{claim.doc_title}</span>
-          </>
-        )}
-        {claim.published_at && (
-          <>
-            <Dot />
-            <span>{fmtDate(claim.published_at)}</span>
-          </>
-        )}
-        {claim.status && claim.status !== "asserted" && (
-          <>
-            <Dot />
-            <Tooltip label="Withdrawn from the current view: a newer claim superseded this one.">
+      <MetaLine
+        parts={[
+          showSource && claim.source_name ? (
+            <span key="source">{claim.source_name}</span>
+          ) : null,
+          showSource && claim.doc_title ? (
+            <Link
+              key="doc"
+              to={`/document/${claim.event_id}`}
+              className="max-w-72 truncate hover:text-accent hover:underline"
+            >
+              {claim.doc_title}
+            </Link>
+          ) : null,
+          claim.published_at ? <span key="date">{fmtDate(claim.published_at)}</span> : null,
+          claim.status && claim.status !== "asserted" ? (
+            <Tooltip
+              key="status"
+              label="Withdrawn from the current view: a newer claim superseded this one."
+            >
               <Badge tone="warn">{stanceLabel(claim.status)}</Badge>
             </Tooltip>
-          </>
-        )}
-        {claim.stance && claim.stance !== "stated" && (
-          <>
-            <Dot />
-            <Tooltip label={STANCE_TIP}>
+          ) : null,
+          claim.stance && claim.stance !== "stated" ? (
+            <Tooltip key="stance" label={STANCE_TIP}>
               <Badge tone="outline">{stanceLabel(claim.stance)}</Badge>
             </Tooltip>
-          </>
-        )}
-        {confidence !== null && (
-          <>
-            <Dot />
-            <Tooltip label={CONFIDENCE_TIP}>
+          ) : null,
+          confidence !== null ? (
+            <Tooltip key="confidence" label={CONFIDENCE_TIP}>
               <span className="font-mono">{fmtConfidence(confidence)}</span>
             </Tooltip>
-          </>
-        )}
-      </div>
+          ) : null,
+        ]}
+      />
     </article>
+  );
+}
+
+/** The small muted line under a claim: the parts that apply, separated by
+ *  dots, with no leading dot whichever part comes first. */
+function MetaLine({ parts }: { parts: (ReactNode | null)[] }) {
+  const shown = parts.filter((part): part is ReactNode => part !== null);
+  if (shown.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+      {shown.map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <Dot />}
+          {part}
+        </Fragment>
+      ))}
+    </div>
   );
 }
 

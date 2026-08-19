@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from . import (artifacts, config, credentials, db, fetch, probes, router,
                signin, staleness, watchlist)
 from .connectors import links, manual
-from .pipeline import adjudicate, resolve
+from .pipeline import adjudicate, resolve, summarize
 
 # ---------------------------------------------------------------- helpers
 
@@ -98,7 +98,8 @@ select c.claim_id, c.subject_entity, c.subject_surface, c.predicate_raw,
        c.qualifiers->>'stance' as stance, c.status, c.superseded_by,
        c.evidence_quote, c.confidence, c.observed_at, c.event_id,
        se.canonical_name as subject_name, oe.canonical_name as object_name,
-       ev.published_at, ev.meta->>'title' as doc_title,
+       ev.published_at,
+       coalesce(ev.meta->>'title', ev.meta->>'filename') as doc_title,
        s.connector, s.name as source_name
 """
 
@@ -113,6 +114,14 @@ left join entity oe on oe.entity_id = c.object_entity
 SOURCE_TYPES = ("edgar", "podcast", "rss", "manual")
 
 
+def like_pattern(term):
+    """'%term%' with the term's own %, _ and backslash escaped, so a typed
+    wildcard matches itself (pair with `escape '\\'` in the ilike)."""
+    escaped = (term.replace("\\", "\\\\").replace("%", "\\%")
+               .replace("_", "\\_"))
+    return f"%{escaped}%"
+
+
 def claims_where(q="", predicate="", source_type="", stance="", sector="",
                  days=None, entity=None, status="asserted"):
     where, params = [], {}
@@ -125,9 +134,11 @@ def claims_where(q="", predicate="", source_type="", stance="", sector="",
         params["status"] = status
     if q:
         where.append(
-            "(c.subject_surface ilike %(pat)s or c.object_surface ilike %(pat)s "
-            "or c.predicate_raw ilike %(pat)s or c.evidence_quote ilike %(pat)s)")
-        params["pat"] = f"%{q}%"
+            "(c.subject_surface ilike %(pat)s escape '\\' "
+            "or c.object_surface ilike %(pat)s escape '\\' "
+            "or c.predicate_raw ilike %(pat)s escape '\\' "
+            "or c.evidence_quote ilike %(pat)s escape '\\')")
+        params["pat"] = like_pattern(q)
     if predicate:
         # the filter takes either form: the raw predicate or its canonical
         # under the latest gardener mapping (design §5.3)
@@ -229,7 +240,8 @@ order by created_at desc
 ER_QUEUE_SQL = """
 select q.mention_id, q.candidates, q.decision, q.created_at, q.decided_at,
        m.surface, m.event_id, ev.artifact_uri,
-       ev.meta->>'title' as doc_title, s.connector, s.name as source_name
+       coalesce(ev.meta->>'title', ev.meta->>'filename') as doc_title,
+       s.connector, s.name as source_name
 from er_queue q
 join mention m on m.mention_id = q.mention_id
 join event ev on ev.event_id = m.event_id
@@ -245,10 +257,13 @@ left join registry_sec r on r.ticker = w.ticker
 order by w.ticker
 """
 
+# events = the source's documents less syndicated copies, the same count the
+# documents list shows for the source by default (build spec v5 §5)
 SOURCE_COLUMNS = """
 select s.source_id, s.name, s.connector, s.url, s.config, s.status,
        s.last_polled, s.last_error,
-       (select count(*) from event e where e.source_id = s.source_id) as events
+       (select count(*) from event e where e.source_id = s.source_id
+         and e.status <> 'duplicate') as events
 from source s
 """
 
@@ -380,6 +395,167 @@ def group_counts(con, sql, keys=()):
     for r in con.execute(sql):
         out[r["k"]] = r["n"]
     return out
+
+
+# ---------------------------------------------------------------- documents
+
+# the document label by connector (build spec v5 §5); the Sources page's
+# source_label names the feed, this names the item
+DOC_TYPES = {"edgar": "Filing", "rss": "Article", "link": "Article",
+             "podcast": "Podcast episode", "youtube": "Video", "x": "X posts",
+             "bridge": "Feed item", "manual": "Upload"}
+
+# the list's type filter -> event.connector values
+DOC_TYPE_FILTERS = {"filing": ("edgar",), "article": ("rss", "link"),
+                    "podcast": ("podcast",), "video": ("youtube",),
+                    "x": ("x",), "bridge": ("bridge",), "upload": ("manual",)}
+
+DOC_STATUSES = ("", "extracted", "pending", "failed", "duplicate")
+
+DOC_TEXT_CAP = 200_000              # characters of body the text endpoint returns
+# bytes held in memory per page view: enough for DOC_TEXT_CAP characters of
+# four-byte UTF-8 plus the connector header
+DOC_TEXT_BYTES = 4 * DOC_TEXT_CAP + 65_536
+
+DOCUMENTS_SELECT = """
+select ev.event_id, ev.connector, ev.status, ev.attempts, ev.last_error,
+       ev.published_at, ev.fetched_at, ev.meta, ev.triage, ev.lineage_id,
+       ev.artifact_uri,
+       s.source_id, s.name as source_name, s.connector as source_connector,
+       s.config as source_config,
+       (select count(*) from claim c
+         where c.event_id = ev.event_id and c.status = 'asserted') as claims,
+       (select count(distinct coalesce(sa.b, m.resolved_entity)) from mention m
+         left join entity_same_as sa on sa.a = m.resolved_entity
+                                    and sa.status = 'active'
+         where m.event_id = ev.event_id
+           and m.resolved_entity is not null) as entities,
+       ds.status as summary_status, ds.summary, ds.key_points,
+       ds.model as summary_model, ds.error as summary_error,
+       ds.requested_at as summary_requested_at,
+       ds.updated_at as summary_updated_at
+from event ev
+join source s on s.source_id = ev.source_id
+left join document_summary ds on ds.event_id = ev.event_id
+"""
+
+DOCUMENT_SOURCES_SQL = """
+select s.source_id, s.name, s.connector, s.config,
+       count(ev.event_id) filter (where ev.status <> 'duplicate') as events
+from source s left join event ev on ev.source_id = s.source_id
+group by s.source_id, s.name, s.connector, s.config
+having count(ev.event_id) > 0 or s.status <> 'dropped'
+order by lower(s.name)
+"""
+
+# mentions of one document with their resolution state (build spec v5 §5)
+DOC_MENTIONS_SQL = """
+select m.mention_id, m.surface, m.resolver, m.confidence, m.resolved_entity,
+       e.canonical_name
+from mention m
+left join entity e on e.entity_id = m.resolved_entity
+where m.event_id = %s
+order by m.surface
+"""
+
+# edges backed by any of the document's claims
+DOC_EDGES_SQL = """
+select e.edge_id, e.src, e.dst, e.predicate, e.origin, e.archived,
+       cardinality(e.claim_ids) as claims_total,
+       (select count(*) from unnest(e.claim_ids) cid
+         where cid = any(%(ids)s)) as claims_here,
+       round(edge_relevance(e.*)::numeric, 2) as relevance,
+       se.canonical_name as src_name, de.canonical_name as dst_name
+from edge e
+join entity se on se.entity_id = e.src
+join entity de on de.entity_id = e.dst
+where e.claim_ids && %(ids)s::uuid[]
+order by relevance desc, e.predicate, se.canonical_name
+"""
+
+
+def doc_title(meta):
+    """One-line title for a document: the connector's title, else the upload's
+    filename, else 'Untitled'; whitespace collapsed (bridge items carry
+    multi-line titles)."""
+    meta = meta or {}
+    raw = meta.get("title") or meta.get("filename") or ""
+    title = " ".join(str(raw).split())
+    return title or "Untitled"
+
+
+def doc_url(meta):
+    """The original: the item page, else the EDGAR filing folder, else the
+    podcast enclosure."""
+    meta = meta or {}
+    return meta.get("item_url") or meta.get("origin") or meta.get("enclosure_url")
+
+
+def doc_source(r):
+    return {"source_id": r["source_id"], "name": r["source_name"],
+            "label": source_label(r["source_connector"], r["source_config"])}
+
+
+def mention_state(resolver, resolved_entity):
+    """resolved | queued (ER review) | pending (resolver not run yet) |
+    skipped (not a company) | unresolved (tried, no match)."""
+    if resolved_entity is not None:
+        return "resolved"
+    if resolver == "queued":
+        return "queued"
+    if resolver == "pending":
+        return "pending"
+    if resolver.startswith("skipped") or resolver == "not_company":
+        return "skipped"
+    return "unresolved"
+
+
+def document_row(r):
+    meta = r["meta"] or {}
+    triage = r["triage"] or {}
+    return {"event_id": r["event_id"], "title": doc_title(meta),
+            "connector": r["connector"],
+            "type": DOC_TYPES.get(r["connector"], r["connector"]),
+            "source": doc_source(r), "site": meta.get("site"),
+            "url": doc_url(meta),
+            "published_at": iso(r["published_at"]),
+            "fetched_at": iso(r["fetched_at"]),
+            "status": r["status"], "thin": bool(meta.get("thin")),
+            "materiality": triage.get("materiality"),
+            "claims": r["claims"], "entities": r["entities"],
+            "summary_status": r["summary_status"] or "none",
+            "summary": r["summary"]}
+
+
+def documents_where(q="", source=None, type_="", status="", days=None,
+                    ticker=""):
+    where, params = [], {}
+    if q:
+        where.append("(coalesce(ev.meta->>'title', ev.meta->>'filename', '') "
+                     "ilike %(pat)s escape '\\' or s.name ilike %(pat)s escape '\\')")
+        params["pat"] = like_pattern(q)
+    if source is not None:
+        where.append("ev.source_id = %(source)s")
+        params["source"] = source
+    if type_:
+        where.append("ev.connector = any(%(connectors)s)")
+        params["connectors"] = list(DOC_TYPE_FILTERS[type_])
+    if status == "":
+        # the default view hides syndicated copies; 'duplicate' shows them
+        where.append("ev.status <> 'duplicate'")
+    elif status == "pending":
+        where.append("ev.status in ('pending', 'extracting')")
+    else:
+        where.append("ev.status = %(status)s")
+        params["status"] = status
+    if days is not None:
+        where.append("coalesce(ev.published_at, ev.fetched_at) >= "
+                     "now() - make_interval(days => %(days)s)")
+        params["days"] = days
+    if ticker:
+        where.append("ev.meta->>'ticker' = %(ticker)s")
+        params["ticker"] = ticker
+    return ("where " + " and ".join(where)) if where else "", params
 
 
 # ---------------------------------------------------------------- bodies
@@ -551,6 +727,8 @@ def create_app():
                 400, "status must be asserted, superseded, retracted or all")
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
+        if days is not None:
+            days = max(0, min(days, 3650))     # int4 range for make_interval
         where, params = claims_where(q.strip(), predicate, source_type,
                                      stance, sector, days, entity, status)
         total = con.execute(
@@ -1126,6 +1304,270 @@ def create_app():
             "('contradiction', %s, %s)", (contradiction_id, body.keep))
         con.commit()
         return {"ok": True}
+
+    # ------------------------------------------------------------ documents
+
+    @app.get("/api/documents")
+    def api_documents(q: str = "", source: uuid.UUID | None = None,
+                      type: str = "", status: str = "", days: int | None = None,
+                      ticker: str = "", limit: int = 50, offset: int = 0,
+                      con=Depends(get_con)):
+        if type and type not in DOC_TYPE_FILTERS:
+            raise HTTPException(
+                400, "type must be filing, article, podcast, video, x, "
+                     "bridge or upload")
+        if status not in DOC_STATUSES:
+            raise HTTPException(
+                400, "status must be extracted, pending, failed or duplicate")
+        limit = max(1, min(limit, 200))
+        offset = max(0, offset)
+        if days is not None:
+            days = max(0, min(days, 3650))     # int4 range for make_interval
+        where, params = documents_where(q.strip(), source, type, status, days,
+                                        ticker.strip().upper())
+        total = con.execute(
+            f"select count(*) n from event ev join source s "
+            f"on s.source_id = ev.source_id {where}", params).fetchone()["n"]
+        rows = con.execute(
+            f"{DOCUMENTS_SELECT} {where} "
+            f"order by coalesce(ev.published_at, ev.fetched_at) desc, ev.event_id "
+            f"limit %(limit)s offset %(offset)s",
+            {**params, "limit": limit, "offset": offset}).fetchall()
+        return {"total": total, "documents": [document_row(r) for r in rows]}
+
+    @app.get("/api/documents/sources")
+    def api_document_sources(con=Depends(get_con)):
+        # every source with a document, whatever its status (dropped feeds
+        # keep their documents readable), plus every live source even before
+        # its first document (the Sources page links its Docs count here)
+        return [{"source_id": r["source_id"], "name": r["name"],
+                 "connector": r["connector"],
+                 "label": source_label(r["connector"], r["config"]),
+                 "events": r["events"]}
+                for r in con.execute(DOCUMENT_SOURCES_SQL)]
+
+    def document_or_404(con, event_id):
+        r = con.execute(f"{DOCUMENTS_SELECT} where ev.event_id = %s",
+                        (event_id,)).fetchone()
+        if r is None:
+            raise HTTPException(404, "No such document.")
+        return r
+
+    def artifact_text(r):
+        """(header, body, chars, truncated) of a document's artifact, or None
+        when the file is gone. Bounded: at most DOC_TEXT_CAP characters of
+        body come back, and the read never exceeds DOC_TEXT_BYTES."""
+        try:
+            text, chars, partial = artifacts.read_bounded(r["artifact_uri"],
+                                                          DOC_TEXT_BYTES)
+        except OSError:
+            return None
+        header, start = summarize.parse_header(text)
+        body = text[start:].strip("\n")
+        # the reader counted the whole file (holding only the head); the
+        # body is that less the header block and its rule
+        chars = max(chars - start, 0) if partial else len(body)
+        truncated = partial or len(body) > DOC_TEXT_CAP
+        return header, body[:DOC_TEXT_CAP], chars, truncated
+
+    @app.get("/api/documents/{event_id}")
+    def api_document(event_id: uuid.UUID, con=Depends(get_con)):
+        r = document_or_404(con, event_id)
+        meta = r["meta"] or {}
+        triage = r["triage"] or {}
+        read = artifact_text(r)
+        chars = read[2] if read is not None else 0
+
+        # lineage: the root when this is a copy, and the copies of this one
+        root = None
+        copies = []
+        if r["lineage_id"] is not None:
+            lin = con.execute(
+                "select l.root_event_id, ev.meta from lineage l "
+                "join event ev on ev.event_id = l.root_event_id "
+                "where l.lineage_id = %s", (r["lineage_id"],)).fetchone()
+            if lin and lin["root_event_id"] != event_id:
+                root = {"event_id": lin["root_event_id"],
+                        "title": doc_title(lin["meta"])}
+            # the other documents on this lineage: for the root its copies,
+            # for a copy its siblings (the root is named in the header line)
+            copies = [{"event_id": c["event_id"], "title": doc_title(c["meta"]),
+                       "source_name": c["source_name"],
+                       "fetched_at": iso(c["fetched_at"])}
+                      for c in con.execute(
+                          "select ev.event_id, ev.meta, ev.fetched_at, "
+                          "s.name as source_name from event ev "
+                          "join source s on s.source_id = ev.source_id "
+                          "where ev.lineage_id = %s and ev.event_id <> %s "
+                          "and ev.event_id <> %s order by ev.fetched_at",
+                          (r["lineage_id"], event_id,
+                           root["event_id"] if root else event_id))]
+
+        # display facts, every value a string (EDGAR 'items' arrives as a
+        # list or a comma-joined string depending on the index file)
+        facts = {}
+        for k in ("ticker", "form", "items", "accession", "feed", "channel",
+                  "username", "filename", "site", "bridge", "video_id"):
+            v = meta.get(k)
+            if v in (None, "", []):
+                continue
+            facts[k] = (", ".join(str(x) for x in v) if isinstance(v, list)
+                        else str(v))
+
+        canon = predicate_canon_map(con)
+        claims = con.execute(
+            f"{CLAIMS_SELECT} {CLAIMS_FROM} where c.event_id = %s "
+            f"order by c.observed_at, c.claim_id", (event_id,)).fetchall()
+        claim_ids = [c["claim_id"] for c in claims]
+
+        mentions = con.execute(DOC_MENTIONS_SQL, (event_id,)).fetchall()
+
+        # the companies this document touches: resolved mentions plus claim
+        # subjects/objects, merged-away ids folded into their canonical
+        merged = db.entity_canonical_map(con)
+        per_entity = {}
+        for m in mentions:
+            if m["resolved_entity"] is None:
+                continue
+            eid = merged.get(m["resolved_entity"], m["resolved_entity"])
+            per_entity.setdefault(eid, {"claims": 0, "mentions": 0})
+            per_entity[eid]["mentions"] += 1
+        for c in claims:
+            # once per claim per entity: a claim whose two ends fold to the
+            # same company (after a merge) counts one, not two
+            touched = {merged.get(c[col], c[col])
+                       for col in ("subject_entity", "object_entity")
+                       if c[col] is not None}
+            for eid in touched:
+                per_entity.setdefault(eid, {"claims": 0, "mentions": 0})
+                per_entity[eid]["claims"] += 1
+        entities = []
+        if per_entity:
+            for e in con.execute(
+                    "select entity_id, canonical_name, kind, registry_refs "
+                    "from entity where entity_id = any(%s)",
+                    (list(per_entity),)):
+                counts = per_entity[e["entity_id"]]
+                refs = e["registry_refs"] or {}
+                entities.append({"entity_id": e["entity_id"],
+                                 "name": e["canonical_name"], "kind": e["kind"],
+                                 "registry": registry_short(refs),
+                                 "ticker": refs.get("ticker") or None,
+                                 "claims": counts["claims"],
+                                 "mentions": counts["mentions"]})
+            entities.sort(key=lambda e: (-e["claims"], -e["mentions"], e["name"]))
+
+        edges = hypotheses = contradictions = []
+        if claim_ids:
+            edges = [{"edge_id": e["edge_id"],
+                      "src": {"entity_id": e["src"], "name": e["src_name"]},
+                      "dst": {"entity_id": e["dst"], "name": e["dst_name"]},
+                      "predicate": e["predicate"], "origin": e["origin"],
+                      "claims_here": e["claims_here"],
+                      "claims_total": e["claims_total"],
+                      "relevance": float(e["relevance"]),
+                      "archived": e["archived"]}
+                     for e in con.execute(DOC_EDGES_SQL, {"ids": claim_ids})]
+            hyp_rows = con.execute(
+                "select hypothesis_id, type, state, subjects from hypothesis "
+                "where evidence && %s::uuid[] order by created_at desc",
+                (claim_ids,)).fetchall()
+            names = entity_names(con, [sid for h in hyp_rows
+                                       for sid in h["subjects"]])
+            hypotheses = [{"hypothesis_id": h["hypothesis_id"],
+                           "type": h["type"], "state": h["state"],
+                           "subjects": [{"entity_id": sid,
+                                         "name": names.get(sid, str(sid)[:8])}
+                                        for sid in h["subjects"]]}
+                          for h in hyp_rows]
+            contradictions = [{"contradiction_id": t["contradiction_id"],
+                               "status": t["status"],
+                               "predicate_canon": t["predicate_canon"],
+                               "subject": {"entity_id": t["subject_entity"],
+                                           "name": t["canonical_name"]}}
+                              for t in con.execute(
+                                  "select t.contradiction_id, t.status, "
+                                  "t.predicate_canon, t.subject_entity, "
+                                  "e.canonical_name from contradiction t "
+                                  "join entity e on e.entity_id = t.subject_entity "
+                                  "where t.claim_a = any(%s) or t.claim_b = any(%s) "
+                                  "order by t.created_at desc",
+                                  (claim_ids, claim_ids))]
+
+        alerts = [{"alert_id": a["alert_id"], "kind": a["kind"],
+                   "title": a["title"], "created_at": iso(a["created_at"])}
+                  for a in con.execute(
+                      "select alert_id, kind, title, created_at from alert "
+                      "where event_id = %s order by created_at desc", (event_id,))]
+
+        # a near-duplicate mirror names the document it was matched to
+        near = None
+        if meta.get("near_duplicate_of"):
+            n = con.execute("select event_id, meta from event where event_id=%s",
+                            (meta["near_duplicate_of"],)).fetchone()
+            if n is not None:
+                near = {"event_id": n["event_id"], "title": doc_title(n["meta"])}
+
+        doc = document_row(r)
+        doc.update({"attempts": r["attempts"], "last_error": r["last_error"],
+                    "chars": chars, "route": triage.get("route"),
+                    "facts": facts,
+                    "lineage": {"lineage_id": r["lineage_id"], "root": root,
+                                "copies": copies},
+                    "near_duplicate_of": near})
+        doc.pop("summary_status", None)
+        doc.pop("summary", None)
+        return {
+            "document": doc,
+            "summary": {"status": r["summary_status"] or "none",
+                        "summary": r["summary"],
+                        "key_points": r["key_points"] or [],
+                        "model": r["summary_model"],
+                        "error": r["summary_error"],
+                        "requested_at": iso(r["summary_requested_at"]),
+                        "updated_at": iso(r["summary_updated_at"])},
+            "claims": [claim_json(c, canon) for c in claims],
+            "mentions": [{"mention_id": m["mention_id"], "surface": m["surface"],
+                          "state": mention_state(m["resolver"],
+                                                 m["resolved_entity"]),
+                          "entity": ({"entity_id": m["resolved_entity"],
+                                      "name": m["canonical_name"]}
+                                     if m["resolved_entity"] is not None
+                                     else None),
+                          "confidence": m["confidence"]} for m in mentions],
+            "entities": entities,
+            "edges": edges,
+            "alerts": alerts,
+            "hypotheses": hypotheses,
+            "contradictions": contradictions,
+        }
+
+    @app.get("/api/documents/{event_id}/text")
+    def api_document_text(event_id: uuid.UUID, con=Depends(get_con)):
+        r = document_or_404(con, event_id)
+        read = artifact_text(r)
+        if read is None:
+            raise HTTPException(404, "The document text is no longer on disk.")
+        header, body, chars, truncated = read
+        return {"header": header, "body": body, "chars": chars,
+                "truncated": truncated}
+
+    @app.post("/api/documents/{event_id}/summarize")
+    def api_document_summarize(event_id: uuid.UUID, con=Depends(get_con)):
+        r = document_or_404(con, event_id)
+        if r["status"] == "duplicate":
+            raise HTTPException(400, "A copy is not summarized on its own.")
+        # the worker may be writing this very row (its chunk commits every
+        # few model calls); rather than wait on its lock, answer as
+        # requested: the summary lands either way
+        con.execute("set local lock_timeout = '3s'")
+        try:
+            summarize.request(con, event_id)
+        except pg_errors.LockNotAvailable:
+            con.rollback()
+            return {"ok": True, "status": "requested"}
+        con.commit()
+        return {"ok": True, "status": "requested"}
 
     # ------------------------------------------------------------ sources
 

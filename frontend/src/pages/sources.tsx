@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClipboardEvent, FormEvent, KeyboardEvent, MouseEvent, WheelEvent } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -447,7 +448,12 @@ function SourcesCard({ sources }: { sources: SourceItem[] }) {
                       {source.last_polled ? timeAgo(source.last_polled) : "Never"}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
-                      {fmtNum(source.events)}
+                      <Link
+                        to={`/documents?source=${source.source_id}`}
+                        className="hover:text-accent hover:underline"
+                      >
+                        {fmtNum(source.events)}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <span className="flex items-center gap-1.5">
@@ -633,15 +639,28 @@ function LinksCard({ links }: { links: LinkRow[] }) {
                 return (
                   <TableRow key={link.link_id}>
                     <TableCell className="max-w-96 whitespace-normal">
-                      <span
-                        className={cn(
-                          "block truncate",
-                          link.title ? "font-medium" : "font-mono text-xs",
-                        )}
-                        title={link.url}
-                      >
-                        {link.title ?? link.url}
-                      </span>
+                      {link.event_id ? (
+                        <Link
+                          to={`/document/${link.event_id}`}
+                          className={cn(
+                            "block truncate hover:text-accent hover:underline",
+                            link.title ? "font-medium" : "font-mono text-xs",
+                          )}
+                          title={link.url}
+                        >
+                          {link.title ?? link.url}
+                        </Link>
+                      ) : (
+                        <span
+                          className={cn(
+                            "block truncate",
+                            link.title ? "font-medium" : "font-mono text-xs",
+                          )}
+                          title={link.url}
+                        >
+                          {link.title ?? link.url}
+                        </span>
+                      )}
                       {link.error && (
                         <span className="block truncate text-xs text-muted-foreground">
                           {link.error}

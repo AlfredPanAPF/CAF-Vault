@@ -173,15 +173,32 @@ function DigestCard() {
 
 // ─── Alert list ──────────────────────────────────────────────
 
-function AlertRow({ alert, onOpen }: { alert: Alert; onOpen: (alert: Alert) => void }) {
+/** The whole row opens the alert's target; when the alert carries a document
+ *  the title itself goes to that document (spec v5 §6). The row button sits
+ *  under the content so the title link stays clickable. */
+function AlertRow({
+  alert,
+  onOpen,
+  onRead,
+}: {
+  alert: Alert;
+  onOpen: (alert: Alert) => void;
+  onRead: (alert: Alert) => void;
+}) {
   const badge = kindBadge(alert.kind);
+  const titleClass = cn(
+    "min-w-0 truncate",
+    alert.read_at ? "text-muted-foreground" : "font-medium text-foreground",
+  );
   return (
-    <li className="border-b border-border last:border-0">
+    <li className="relative border-b border-border transition-colors last:border-0 hover:bg-muted/40">
       <button
         type="button"
+        aria-label={alert.title}
         onClick={() => onOpen(alert)}
-        className="w-full px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
-      >
+        className="absolute inset-0 size-full"
+      />
+      <div className="pointer-events-none relative px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span
             className={cn(
@@ -190,14 +207,17 @@ function AlertRow({ alert, onOpen }: { alert: Alert; onOpen: (alert: Alert) => v
             )}
           />
           <Badge tone={badge.tone}>{badge.label}</Badge>
-          <span
-            className={cn(
-              "min-w-0 truncate",
-              alert.read_at ? "text-muted-foreground" : "font-medium text-foreground",
-            )}
-          >
-            {alert.title}
-          </span>
+          {alert.event_id ? (
+            <Link
+              to={`/document/${alert.event_id}`}
+              onClick={() => onRead(alert)}
+              className={cn(titleClass, "pointer-events-auto hover:text-accent hover:underline")}
+            >
+              {alert.title}
+            </Link>
+          ) : (
+            <span className={titleClass}>{alert.title}</span>
+          )}
           <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
             {timeAgo(alert.created_at)}
           </span>
@@ -205,7 +225,7 @@ function AlertRow({ alert, onOpen }: { alert: Alert; onOpen: (alert: Alert) => v
         {alert.body && (
           <p className="mt-0.5 truncate pl-3.5 text-xs text-muted-foreground">{alert.body}</p>
         )}
-      </button>
+      </div>
     </li>
   );
 }
@@ -238,8 +258,12 @@ export function AlertsPage() {
     onError: (err) => toast.error(errorDetail(err)),
   });
 
-  const openAlert = (alert: Alert) => {
+  const readAlert = (alert: Alert) => {
     if (!alert.read_at) markRead.mutate(alert.alert_id);
+  };
+
+  const openAlert = (alert: Alert) => {
+    readAlert(alert);
     const target = alertTarget(alert);
     if (target) navigate(target);
   };
@@ -284,7 +308,12 @@ export function AlertsPage() {
           <CardContent className="p-0">
             <ul>
               {alerts.map((alert) => (
-                <AlertRow key={alert.alert_id} alert={alert} onOpen={openAlert} />
+                <AlertRow
+                  key={alert.alert_id}
+                  alert={alert}
+                  onOpen={openAlert}
+                  onRead={readAlert}
+                />
               ))}
             </ul>
           </CardContent>

@@ -23,7 +23,15 @@ MODELS = {
     "investigate": os.environ.get("CAF_MODEL_INVESTIGATE", "claude-sonnet-5"),
     "verify": os.environ.get("CAF_MODEL_VERIFY", "claude-sonnet-5"),
     "garden": os.environ.get("CAF_MODEL_GARDEN", "claude-sonnet-5"),
+    "summarize": os.environ.get("CAF_MODEL_SUMMARIZE", "claude-sonnet-5"),
 }
+
+# document summaries (build spec v5): per-cycle cap on the worker's summarize
+# stage, the body length under which a document is not worth a model call,
+# and the prompt cap (extraction uses 60k for the same reason)
+SUMMARIZE_PER_CYCLE = int(os.environ.get("CAF_VAULT_SUMMARIZE_PER_CYCLE", "30"))
+SUMMARY_MIN_CHARS = 600
+SUMMARY_MAX_CHARS = 80000
 
 # edge decay half-lives in days by predicate keyword (design §9); None = structural
 HALF_LIFE_RULES = [

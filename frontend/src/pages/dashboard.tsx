@@ -357,7 +357,12 @@ function FailedCard({ failed }: { failed: FailedEvent[] }) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="truncate">{event.title ?? event.event_id}</span>
+                    <Link
+                      to={`/document/${event.event_id}`}
+                      className="truncate hover:text-accent hover:underline"
+                    >
+                      {event.title ?? event.event_id}
+                    </Link>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {connectorLabel(event.connector)}
                     </span>
@@ -440,6 +445,7 @@ export function DashboardPage() {
           sub={`${fmtNum(counts.events.extracted)} extracted · ${fmtNum(
             counts.events.pending + counts.events.extracting,
           )} pending`}
+          to="/documents"
         />
         <Counter
           label="Claims"

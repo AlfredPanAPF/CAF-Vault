@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 
 from graph import cli, config, db, llm, webapp
 from graph.connectors import edgar, manual, rss
-from graph.pipeline import extract, materialize, resolve, triage
+from graph.pipeline import extract, materialize, resolve, summarize, triage
 
 # Canned extraction output, shaped per graph/prompts/extraction.md.
 EXTRACTION = {
@@ -62,6 +62,22 @@ def test_pipeline(con, tmp_path, monkeypatch):
                         (event_id,)).fetchone()
     assert event["status"] == "extracted"
 
+    # the summary stage runs right after extraction on the same document
+    # (build spec v5 §3); scoped to this event, the database is shared
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: {
+        "summary": "Nvidia supplies boards to AMD.", "key_points": ["One."]})
+    summarize.request(con, event_id)       # the page asked; served first
+    monkeypatch.setattr(config, "SUMMARY_MIN_CHARS", 10)   # the note is short
+    out = summarize.run(con, limit=1, requested_only=True)
+    assert out["summarized"] == 1
+    row = con.execute("select * from document_summary where event_id=%s",
+                      (event_id,)).fetchone()
+    assert row["status"] == "done"
+    assert row["summary"] == "Nvidia supplies boards to AMD."
+    assert row["key_points"] == ["One."]
+    monkeypatch.setattr(llm, "complete_json",
+                        lambda *a, **k: copy.deepcopy(EXTRACTION))
+
     resolve.run(con)
     mentions = {r["surface"]: r for r in con.execute(
         "select m.surface, m.resolver, e.registry_refs from mention m "
@@ -77,7 +93,9 @@ def test_pipeline(con, tmp_path, monkeypatch):
     assert claim["object_entity"] is not None
 
     materialize.run(con)
-    edges = con.execute("select * from edge where origin='asserted'").fetchall()
+    # scoped to this claim: earlier files leave asserted edges of their own
+    edges = con.execute("select * from edge where origin='asserted' "
+                        "and %s = any(claim_ids)", (claim["claim_id"],)).fetchall()
     assert len(edges) == 1
     assert edges[0]["predicate"] == "supplies"
     assert edges[0]["src"] == claim["subject_entity"]
@@ -86,7 +104,8 @@ def test_pipeline(con, tmp_path, monkeypatch):
 
     # envelope dedup: same bytes again -> None, mirror event on the same lineage
     assert manual.ingest_file(con, str(doc)) is None
-    dup = con.execute("select * from event where status='duplicate'").fetchone()
+    dup = con.execute("select * from event where status='duplicate' "
+                      "and content_hash = %s", (event["content_hash"],)).fetchone()
     assert dup is not None
     assert dup["lineage_id"] == event["lineage_id"]
 
@@ -105,7 +124,7 @@ def test_seed_watchlist_and_podcast_sources(con):
 
     feeds = {r["name"]: r for r in con.execute(
         "select name, url, status, added_by from source "
-        "where connector='podcast'")}
+        "where connector='podcast' and added_by='seed'")}
     assert set(feeds) == {"podcast:unhedged", "podcast:aidailybrief"}
     assert all(f["url"] and f["status"] == "active" and f["added_by"] == "seed"
                for f in feeds.values())
@@ -186,7 +205,8 @@ def test_rss_poll_ingests_and_dedups(con, monkeypatch):
     out = rss.poll(con)
     assert out["new"] == 1
     assert out["thin"] == 0
-    ev = con.execute("select * from event where connector='rss'").fetchone()
+    ev = con.execute("select * from event where connector='rss' "
+                     "and meta->>'feed' = 'exampleblog'").fetchone()
     assert ev["meta"]["feed"] == "exampleblog"
     assert ev["meta"]["item_url"] == "https://example.com/posts/nvidia-amd"
     assert con.execute("select last_polled from source where name='exampleblog'"

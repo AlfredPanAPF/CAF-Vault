@@ -9,7 +9,7 @@ CAF Vault: a self-updating company knowledge graph for a three-person investment
 Read before changing anything substantive:
 - `docs/company-graph-design.md` (v2): the spec. Code cites its section numbers (`§`); keep doing that in comments and commit messages.
 - `docs/HANDOVER.md`: current state, what is built and verified, what is next, and hard-won ops knowledge. Update it at the end of each build phase (the repo history has "Handover:" commits for this).
-- `docs/build-spec-v*.md`: per-phase build specs (v2 is the frontend spec; its §7 copy rules are mandatory for every user-facing string).
+- `docs/build-spec-v*.md`: per-phase build specs (v2 is the frontend spec; its §7 copy rules are mandatory for every user-facing string; v5 is the documents pages + summaries).
 
 The owner's working preference: build to maturity, verify everything yourself (tests, browser, live local server), then ship. Do not hand back half-finished states for manual testing.
 
@@ -25,12 +25,12 @@ uv run graph run                     # one full pipeline cycle in-process
 uv run graph loop                    # the worker: cycles forever, per-stage isolation + telemetry
 uv run graph serve                   # FastAPI + built SPA on :8642 (prod uses --port 8600)
 uv run graph status                  # counts by stage
-uv run graph <stage>                 # run one stage: extract, resolve, adjudicate, materialize,
-                                     # discover, triage, garden, quality, funnel, hypothesize,
-                                     # investigate, verify, links, ingest-edgar, ingest-podcasts, ...
+uv run graph <stage>                 # run one stage: extract, summarize, resolve, adjudicate,
+                                     # materialize, discover, triage, garden, quality, funnel,
+                                     # hypothesize, investigate, verify, links, ingest-edgar, ...
 ```
 
-Tests (pytest, ~200 tests, Postgres required):
+Tests (pytest, ~280 tests, Postgres required):
 
 ```
 uv run pytest                                   # whole suite against caf_graph_test (dropped/recreated per session)
@@ -40,7 +40,7 @@ CAF_DB_URL=postgresql:///caf_test_x uv run pytest tests/test_quality.py   # sepa
 CAF_E2E=1 uv run pytest tests/test_signin_fill.py -q                      # opt-in real-browser test
 ```
 
-The suite shares one database and earlier files commit rows, so new tests must scope their assertions (filter by the ids they created, never assert global counts). LLM calls are mocked in tests; the pipeline and discovery funnel run end to end on those mocks.
+The suite shares one database and earlier files commit rows, so new tests must scope their assertions (filter by the ids they created, never assert global counts), and must not leave readable `pending` events behind (later files run triage + extract). LLM calls are mocked in tests; the pipeline and discovery funnel run end to end on those mocks.
 
 Frontend (`frontend/`, Vite + React 19 + TS strict + Tailwind 4 + TanStack Query):
 
@@ -67,9 +67,9 @@ Docker: one image (`Dockerfile`, node stage builds the SPA, python stage runs th
 
 ### Pipeline (`graph/`)
 
-One cycle, in order (`cli.py:cmd_run` / `cmd_loop`): connectors (`connectors/edgar.py`, `podcast.py`, `rss.py`, `youtube.py`, `x.py`, `bridge.py`, `links.py`, `manual.py`) → `envelope.py` (event envelope, content-hash dedup, lineage) → `pipeline/triage.py` (heuristic materiality, no LLM) → `pipeline/extract.py` → `pipeline/resolve.py` (per-mention ER: SEC registry + GLEIF sqlite + alias seed + filer context + created-entity tier) → `pipeline/adjudicate.py` (LLM on the ER queue) → `pipeline/gardener.py` → `pipeline/materialize.py` (edges rebuilt from claims) → `pipeline/quality.py` (contradictions, source reliability) → `discovery/` (attribute joins → funnel → hypothesize → investigate → verify → wake). Prompts are markdown files in `graph/prompts/`.
+One cycle, in order (`cli.py:cmd_run` / `cmd_loop`): connectors (`connectors/edgar.py`, `podcast.py`, `rss.py`, `youtube.py`, `x.py`, `bridge.py`, `links.py`, `manual.py`) → `envelope.py` (event envelope, content-hash dedup, lineage) → `pipeline/triage.py` (heuristic materiality, no LLM) → `pipeline/extract.py` → `pipeline/summarize.py` (one LLM summary per document into `document_summary`; build spec v5) → `pipeline/resolve.py` (per-mention ER: SEC registry + GLEIF sqlite + alias seed + filer context + created-entity tier) → `pipeline/adjudicate.py` (LLM on the ER queue) → `pipeline/gardener.py` → `pipeline/materialize.py` (edges rebuilt from claims) → `pipeline/quality.py` (contradictions, source reliability) → `discovery/` (attribute joins → funnel → hypothesize → investigate → verify → wake). Prompts are markdown files in `graph/prompts/`.
 
-The worker runs each stage on a fresh connection so one failure never poisons the cycle; every call lands in `stage_run`, cycles upsert a heartbeat KV, and a run-now flag shortens the sleep.
+The worker runs each stage on a fresh connection so one failure never poisons the cycle; every call lands in `stage_run`, cycles upsert a heartbeat KV, and a run-now flag shortens the sleep. Between cycles the nap loop also answers document-summary requests from the page (`summarize.run(requested_only=True)`), so the web process never calls the model.
 
 ER precision guards exist because of real false positives: a ticker match needs the registrant name in-document; single-token GLEIF matches never auto-resolve. Do not loosen them.
 
@@ -84,9 +84,13 @@ Two engines behind `complete()` / `complete_json()`: `claude_code` (default; `cl
 - `graph/credentials.py`, `fetch.py`, `probes.py`: per-site cookies.txt / bearer stored in the `credential` table; `curl_cffi` Chrome impersonation; per-site wall detection raises `SignInNeeded`. Credential values never leave the API, are never logged, and never appear in artifacts or error messages. `graph/substack_session.py`: a Substack publication on its own domain does not honour the substack.com sid; a per-host session is minted through Substack's cross-domain sign-in and kept in `credential_session`, same privacy rules.
 - `graph/browser.py` + `signin.py`: FT/WSJ article bodies come through the CloakBrowser sidecar (Playwright over CDP); "Sign in" on the Sources page fills the site's login form server-side, stores only the resulting session cookie, and falls back to a live view for steps the server cannot type. Email and password are used once and never stored or logged.
 
+### Documents (build spec v5)
+
+The `event` row is the document (one article, episode, filing, video transcript, post digest or upload). `GET /api/documents` (filters: q, source, type, status, days, ticker), `/api/documents/sources`, `/api/documents/{id}` (summary, claims of every status, mentions with resolution state, the companies it touches with merges folded, the edges its claims back, lineage copies, alerts, hypotheses, contradictions), `/{id}/text` (artifact header + body) and `POST /{id}/summarize` (queues a `document_summary` row as `requested`; the worker writes it). Pages `/documents` and `/document/:id`.
+
 ### Web (`graph/webapp.py`, `frontend/`)
 
-FastAPI serves the JSON API under `/api` and the built SPA for everything else. Vault is mounted at `/vault/` behind host nginx (prefix-stripping): Vite `base` is `/vault/`, `frontend/src/lib/api.ts` prefixes `BASE_URL`, and the backend must not set `FastAPI(root_path=...)` (assets 404, blank SPA). Pages live in `frontend/src/pages/` (dashboard, claims, entities, entity, sources, hypotheses, review, alerts) with a shared shell in `components/shell.tsx`; data fetching is TanStack Query, filters live in URL params.
+FastAPI serves the JSON API under `/api` and the built SPA for everything else. Vault is mounted at `/vault/` behind host nginx (prefix-stripping): Vite `base` is `/vault/`, `frontend/src/lib/api.ts` prefixes `BASE_URL`, and the backend must not set `FastAPI(root_path=...)` (assets 404, blank SPA). Pages live in `frontend/src/pages/` (dashboard, claims, documents, document, entities, entity, sources, hypotheses, review, alerts) with a shared shell in `components/shell.tsx`; data fetching is TanStack Query, filters live in URL params.
 
 Copy rules (`docs/build-spec-v2-frontend.md` §7) for every user-facing string: sentence case, short, plain verbs on buttons, no marketing words, no emoji, no exclamation marks, no em dashes, fixed tooltip strings used verbatim.
 
@@ -96,7 +100,7 @@ Copy rules (`docs/build-spec-v2-frontend.md` §7) for every user-facing string: 
 - Deploys are tag-driven only: commit here → push → bump the `Vault` submodule in `~/CAF` → push → push a `deploy-YYYYMMDD-HHMMSS` tag → GitHub Actions builds, SSHes in, health gate, route smoke. Config-only changes still need the tag.
 - Respect the box: the worker is capped (2g mem / 1.5 cpu) after an uncapped whisper run froze the host; ASR stays off unless `CAF_VAULT_ASR` is set. Each Claude Code subprocess is ~300 MB (`CAF_VAULT_CC_MAX_SUBPROCESSES`, default 2).
 - Production data is deliberately empty until the owner's population run; sources are added through `/vault/sources`, never preloaded. The seat token (`claude setup-token` → server `.env`) is the owner's step.
-- Env knobs all have local defaults (`graph/config.py`): `CAF_DB_URL`, `CAF_ARTIFACTS`, `CAF_GLEIF` (~500 MB golden copy, fetched on first worker boot unless `CAF_FETCH_GLEIF=0`), `CAF_MODEL_*`, `CAF_VAULT_HYP_*`, `CAF_BRIDGE_URL`/`CAF_BRIDGE_TOKEN`, `CAF_CLOAK_LICENSE_KEY`.
+- Env knobs all have local defaults (`graph/config.py`): `CAF_DB_URL`, `CAF_ARTIFACTS`, `CAF_GLEIF` (~500 MB golden copy, fetched on first worker boot unless `CAF_FETCH_GLEIF=0`), `CAF_MODEL_*` (incl. `CAF_MODEL_SUMMARIZE`), `CAF_VAULT_HYP_*`, `CAF_VAULT_SUMMARIZE_PER_CYCLE`, `CAF_BRIDGE_URL`/`CAF_BRIDGE_TOKEN`, `CAF_CLOAK_LICENSE_KEY`.
 - SEC EDGAR: descriptive User-Agent, ≤10 req/s. Acast CDNs 403 the default python UA.
 
 ## Layout notes

@@ -50,7 +50,7 @@ function errorDetail(err: unknown): string {
   return err instanceof ApiError ? err.detail : "Request failed.";
 }
 
-function typeLabel(type: string): string {
+export function typeLabel(type: string): string {
   const plain = type.replace(/_/g, " ");
   return plain.charAt(0).toUpperCase() + plain.slice(1);
 }

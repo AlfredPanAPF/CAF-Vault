@@ -201,9 +201,15 @@ def ingest_bytes(con, filename, data: bytes):
         doc = f"# title: {Path(name).stem}\n# source_type: document\n---\n{raw}\n"
         published_at = None
     source_id = db.get_or_create_source(con, "manual:uploads", "manual", is_internal=True)
+    # the title the document page shows: the article's own for HTML, the
+    # file's stem otherwise (build spec v5 §5); the filename stays for the
+    # ops surfaces
+    meta = {"filename": name,
+            "title": (title if Path(name).suffix.lower() in (".htm", ".html")
+                      else Path(name).stem)}
     event_id, is_new = envelope.ingest(
         con, source_id, "manual", doc.encode("utf-8"), "text/plain", ".txt",
-        published_at=published_at, meta={"filename": name})
+        published_at=published_at, meta=meta)
     print(f"{name}: {'event ' + str(event_id) if is_new else 'duplicate'}")
     return event_id if is_new else None
 
