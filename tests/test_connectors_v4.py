@@ -364,13 +364,17 @@ def test_rss_wsj_section_polls_the_page_and_fetches_articles(con, monkeypatch):
     assert "allow_wall" not in listing_kw
     events = events_of(con, "rss")
     # item_url is router-normalized (the ?mod= tracker is gone), so a piece
-    # pasted once and met on the page again is one document
-    assert [e["meta"]["item_url"] for e in events] == [
-        "https://www.wsj.com/finance/auto-insurance-93243754",
-        "https://www.wsj.com/tech/ai/open-weight-ai-523e6410"]
-    assert [e["meta"]["title"] for e in events] == [
-        "Auto insurance premiums keep falling",
-        "Open-weight AI will not crimp demand"]
+    # pasted once and met on the page again is one document. Compared as a
+    # sorted pairing, not a sequence: both rows share one transaction
+    # timestamp, so the events_of order-by-fetched_at tie breaks on physical
+    # row order, which other files' committed rows perturb under full-suite
+    # ordering.
+    assert sorted((e["meta"]["item_url"], e["meta"]["title"])
+                  for e in events) == [
+        ("https://www.wsj.com/finance/auto-insurance-93243754",
+         "Auto insurance premiums keep falling"),
+        ("https://www.wsj.com/tech/ai/open-weight-ai-523e6410",
+         "Open-weight AI will not crimp demand")]
     assert all(e["meta"]["site"] == "wsj" for e in events)
     row = source_row(con, "WSJ heard on the street")
     assert row["last_error"] is None and row["last_polled"] is not None
