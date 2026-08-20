@@ -71,7 +71,12 @@ def run(con, limit=10, exclude=None):
             prompt = (f"# Document (doc_id: {ev['event_id']})\n\n"
                       + (context + "\n\n" if context else "")
                       + body[:BODY_CAP])
-            result = llm.complete_json(prompt, model, max_tokens=16000,
+            # 48000: a dense document emits its whole envelope in ONE
+            # structured turn (adaptive thinking included) — 16000 killed
+            # the four largest SemiAnalysis posts with "response exceeded
+            # the 16000 output token maximum" on the v6 requeue, and the
+            # worst observed envelope was ~40k tokens
+            result = llm.complete_json(prompt, model, max_tokens=48000,
                                        schema=schemas.EXTRACTION,
                                        system=prompt_base)
             # claims carry the RESOLVED model id (provenance), not the alias
