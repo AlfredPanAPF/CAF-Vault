@@ -120,6 +120,65 @@ def items(feed_text: str):
                "uid": _tag(block, "guid") or _tag(block, "id") or link}
 
 
+# ---------------------------------------------------------------- wsj listings
+
+# What a rendered WSJ /news/ listing carries that its DataDome interstitial
+# never does. Doubles as the sidecar's cue that the page is whole, standing in
+# for the article body markers (build spec v4 §4 rule 13, listing half).
+WSJ_LISTING_MARKERS = ('"articleUrl"',)
+# the pageProps lists that hold the listing's own pieces; everything else on
+# the page (latestVideos, whatsNewsData, mostPopularData) is sidebar
+_WSJ_LISTING_KEYS = ("latestArticles", "moreInArticlesInitial",
+                     "authorFeedArticles")
+_NEXT_DATA_RE = re.compile(
+    r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
+
+
+def wsj_section_items(html: str) -> list[dict]:
+    """A WSJ /news/ listing page -> feed-shaped items (title, link/url, date,
+    content_html carrying the page's one-line summary, uid). The page is
+    Next.js: its pieces sit in the __NEXT_DATA__ JSON under pageProps, not in
+    anchor tags. Video rows and non-article links are dropped. [] when the
+    page does not carry the shape — the caller reports that; a wall never
+    reaches here (fetch raises SignInNeeded first)."""
+    m = _NEXT_DATA_RE.search(html or "")
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(1))
+    except ValueError:
+        return []
+    props = data.get("props") if isinstance(data, dict) else None
+    props = props.get("pageProps") if isinstance(props, dict) else None
+    if not isinstance(props, dict):
+        return []
+    out, seen = [], set()
+    for key in _WSJ_LISTING_KEYS:
+        rows = props.get(key)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or row.get("isVideo"):
+                continue
+            link = (row.get("articleUrl") or "").strip()
+            title = unescape((row.get("headline") or "").strip())
+            parts = urlsplit(link)
+            if not (link and title) or \
+                    not (parts.hostname or "").lower().endswith("wsj.com"):
+                continue
+            if (parts.path or "").startswith(("/video/", "/livecoverage/")):
+                continue
+            if link in seen:
+                continue
+            seen.add(link)
+            out.append({"title": title, "link": link, "url": link,
+                        "date": date_of(str(row.get("timestamp") or "")),
+                        "content_html": (row.get("summary") or "").strip(),
+                        "enclosure": "", "enclosure_type": "",
+                        "uid": str(row.get("id") or row.get("seoId") or link)})
+    return out
+
+
 # ---------------------------------------------------------------- fetching
 
 
@@ -160,6 +219,18 @@ def _feed_text(url: str, site: str | None, con=None) -> str:
     # the same capped read the item pages get: an oversized or slow-drip feed
     # must not buffer without a ceiling inside the worker
     return fetch_page(url)
+
+
+def _listing_text(url: str, site: str | None, con=None) -> str:
+    """A WSJ /news/ listing page, rendered. Unlike the public feeds the
+    listing itself is walled, so wall detection stays on (SignInNeeded stops
+    the source for the cycle) and the listing markers stand in for the
+    article body markers on the browser path."""
+    r = fetch.get(url, site=site, con=con, timeout=30,
+                  body_markers=WSJ_LISTING_MARKERS)
+    if not r.ok:
+        raise RuntimeError(f"HTTP {r.status}")
+    return r.text
 
 
 def html_words(html: str) -> int:
@@ -326,10 +397,12 @@ def poll(con, limit_per_feed=5):
         feed = src["name"]
         cfg = src["config"] or {}
         site = cfg.get("site")
+        wsj_section = bool(cfg.get("wsj_section"))
         substack = cfg.get("substack") if isinstance(cfg.get("substack"), dict) else None
         substack_origin = (substack or {}).get("origin")
         try:
-            text = _feed_text(src["url"], site, con)
+            text = (_listing_text(src["url"], site, con) if wsj_section
+                    else _feed_text(src["url"], site, con))
         except fetch.SignInNeeded as e:
             print(f"error {feed}: {e}")
             note_error(con, src["source_id"], "Sign-in needed")
@@ -342,7 +415,14 @@ def poll(con, limit_per_feed=5):
             continue
         con.execute("update source set last_polled=now(), last_error=null, "
                     "last_error_at=null where source_id=%s", (src["source_id"],))
-        parsed = list(items(text))
+        parsed = wsj_section_items(text) if wsj_section else list(items(text))
+        if wsj_section and not parsed:
+            # the page answered but without the listing shape (a redesign, a
+            # page that is not a listing): say so instead of looking freshly
+            # polled and healthy while nothing ever arrives
+            note_error(con, src["source_id"], "No articles found on the page")
+            counts["errors"] += 1
+            continue
         stale = stale_since(parsed)
         if stale:
             # a feed that answers 200 with nothing new for weeks (the legacy

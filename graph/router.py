@@ -49,7 +49,7 @@ YT_CONSENT = {"SOCS": "CAI", "CONSENT": "YES+1"}   # skips the consent wall
 WSJ_FEED_BASE = "https://feeds.content.dowjones.io/public/rss/"
 WSJ_LEGACY_HOST = "feeds.a.dj.com"
 # §4 rule 13; finance rides with markets (the public WSJ feeds are the only
-# targets available).
+# targets available; every slug verified live 2026-08-20).
 WSJ_SECTION_FEEDS = {
     "": "RSSWorldNews",
     "markets": "RSSMarketsMain",
@@ -58,9 +58,15 @@ WSJ_SECTION_FEEDS = {
     "economy": "socialeconomyfeed",
     "tech": "RSSWSJD",
     "world": "RSSWorldNews",
+    "us-news": "RSSUSnews",
+    "politics": "socialpoliticsfeed",
     "opinion": "RSSOpinion",
     "personal-finance": "RSSPersonalFinance",
+    "real-estate": "latestnewsrealestate",
     "lifestyle": "RSSLifestyle",
+    "style": "RSSStyle",
+    "health": "socialhealth",
+    "sports": "rsssportsfeed",
     "arts-culture": "RSSArtsCulture",
 }
 WSJ_FEED_SECTIONS = {"RSSMarketsMain": "markets",
@@ -69,10 +75,20 @@ WSJ_FEED_SECTIONS = {"RSSMarketsMain": "markets",
                      "socialeconomyfeed": "economy",
                      "RSSWSJD": "tech",
                      "RSSWorldNews": "world",
+                     "RSSUSnews": "US news",
+                     "socialpoliticsfeed": "politics",
                      "RSSOpinion": "opinion",
                      "RSSPersonalFinance": "personal finance",
+                     "latestnewsrealestate": "real estate",
                      "RSSLifestyle": "lifestyle",
+                     "RSSStyle": "style",
+                     "socialhealth": "health",
+                     "rsssportsfeed": "sports",
                      "RSSArtsCulture": "arts and culture"}
+# §4 rule 13 (listing half): /news/ pages that list a column, an article type
+# or an author have no public feed; the page itself is polled through the
+# browser path (rss.wsj_section_items). These /news/ paths are not listings.
+WSJ_NEWS_NOT_LISTINGS = {"rss-news-and-feeds", "archive", "types", "author"}
 WSJ_ARTICLE_SECTIONS = ("finance", "business", "tech", "economy", "politics",
                         "world", "opinion")
 X_RESERVED = {"home", "search", "i", "explore"}
@@ -379,6 +395,31 @@ def wsj_section_feed(path: str) -> str | None:
     key = seg[0].lower() if seg else ""
     name = WSJ_SECTION_FEEDS.get(key)
     return WSJ_FEED_BASE + name if name else None
+
+
+def wsj_listing(seg: list[str]) -> str | None:
+    """The listing name for a WSJ /news/ page, or None when the path is not
+    one (§4 rule 13, listing half). Columns (`/news/heard-on-the-street`) have
+    no public feed — Dow Jones's directory was checked 2026-08-20 — so the
+    page itself is the thing polled; article types (`/news/types/<slug>`) and
+    authors (`/news/author/<slug>`) render the same listing shape."""
+    if not seg or seg[0] != "news":
+        return None
+    if len(seg) == 2 and seg[1].lower() not in WSJ_NEWS_NOT_LISTINGS:
+        return seg[1].lower()
+    if len(seg) == 3 and seg[1].lower() in ("types", "author"):
+        return f"{seg[1].lower()}/{seg[2].lower()}"
+    return None
+
+
+def wsj_listing_name(listing: str) -> str:
+    """A suggested source name: "WSJ heard on the street"; author slugs are
+    people, so their words are capitalized ("WSJ Greg Ip")."""
+    kind, _, slug = listing.rpartition("/")
+    words = slug.replace("-", " ")
+    if kind == "author":
+        words = words.title()
+    return f"WSJ {words}"
 
 
 def substack_share(url: str) -> str:
@@ -695,6 +736,19 @@ def resolve(con, raw_url: str) -> Resolution:
             section = seg[0] if seg else "world"
             return _build(url, "feed", "rss", "WSJ feed", name=f"WSJ {section}",
                           feed_url=feed_url, site="wsj", con=con)
+        # 13 (listing half) wsj /news/ column, type or author page: no public
+        # feed exists, so the page itself is the feed the poller reads
+        # (rss.wsj_section_items through the browser path). Without the WSJ
+        # sign-in the page is walled end to end, so the note says so.
+        listing = wsj_listing(seg)
+        if listing:
+            cred = _credential(con, "wsj")
+            note = ("The page needs the WSJ sign-in."
+                    if cred and not cred["set"] else None)
+            return _build(url, "feed", "rss", "WSJ section",
+                          name=wsj_listing_name(listing), feed_url=url,
+                          site="wsj", config={"wsj_section": listing},
+                          con=con, credential=cred, message=note)
     # 14 apple podcasts
     if host == "podcasts.apple.com":
         m = re.search(r"/id(\d+)", path)

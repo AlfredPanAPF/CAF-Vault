@@ -733,6 +733,52 @@ def test_wsj_article_survives_the_browser_path(monkeypatch, sidecar, public_dns,
     assert len(body) >= 400                         # probes.MIN_BODY
 
 
+# a WSJ /news/ listing as the sidecar renders it: no article body anywhere,
+# the pieces in the __NEXT_DATA__ JSON, DataDome's ordinary tag riding along
+WSJ_LISTING = "https://www.wsj.com/news/heard-on-the-street"
+WSJ_LISTING_HTML = (
+    '<html><head><title>Heard on the Street</title>'
+    '<script src="https://js.captcha-delivery.com/tags.js"></script></head>'
+    '<body><div id="root">Heard on the Street</div>'
+    '<script id="__NEXT_DATA__" type="application/json">'
+    '{"props":{"pageProps":{"latestArticles":[{"articleUrl":'
+    '"https://www.wsj.com/finance/auto-insurance-93243754","headline":'
+    '"Auto insurance premiums have room to keep falling","summary":'
+    '"The soft market pleases inflation watchers.","timestamp":'
+    '"2026-08-18T09:30:00Z"}]}}}</script></body></html>')
+
+
+def test_browser_get_listing_markers_stand_in_for_the_body(monkeypatch, sidecar):
+    """A WSJ /news/ listing carries none of the article body markers, so
+    without its own markers every poll would sit out the full wall wait and
+    the wall check would read the page as a barrier (§4 rule 13, listing
+    half)."""
+    from graph.connectors import rss
+
+    assert browser._has_body(WSJ_LISTING_HTML, "wsj") is False
+    assert browser._has_body(WSJ_LISTING_HTML, "wsj",
+                             rss.WSJ_LISTING_MARKERS) is True
+    # DataDome's ordinary tag says "captcha" in the head, so without the
+    # markers the wall check calls the whole listing a sign-in page
+    assert fetch.detect_wall("wsj", 200, WSJ_LISTING_HTML) == "sign-in page returned"
+    assert fetch.detect_wall("wsj", 200, WSJ_LISTING_HTML,
+                             rss.WSJ_LISTING_MARKERS) is None
+
+    clock = FakeClock()
+    monkeypatch.setattr(browser, "time", clock)
+    fake = FakeBrowser([WSJ_LISTING_HTML], status=401)
+    install_playwright(monkeypatch, fake)
+
+    resp = browser.get(WSJ_LISTING, site="wsj", timeout=45,
+                       body_markers=rss.WSJ_LISTING_MARKERS)
+
+    assert resp.status == 200               # DataDome's 401 is not the page's
+    assert resp.text == WSJ_LISTING_HTML
+    assert len(fake.made) == 1              # no retry
+    # and no wall wait: the listing markers ended it on the first read
+    assert clock.now - 1000.0 < browser.WALL_WAIT_S
+
+
 def test_fetch_get_reports_an_ft_barrier_that_carries_a_teaser(monkeypatch,
                                                                sidecar,
                                                                public_dns, signed_in):

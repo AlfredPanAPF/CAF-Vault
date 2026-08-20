@@ -148,6 +148,33 @@ def test_api_sources_post_feed(con, monkeypatch):
     assert r.json()["detail"] == router.NO_FEED
 
 
+def test_api_sources_post_wsj_news_listing(con, monkeypatch):
+    """A /news/ column page resolves by pattern alone, so this runs the real
+    router; the guard proves no network step fires on the way."""
+    client = TestClient(webapp.app)
+    monkeypatch.setattr(fetch, "head",
+                        lambda *a, **k: pytest.fail("no network"))
+    url = "https://www.wsj.com/news/heard-on-the-street"
+
+    body = client.post("/api/sources", json={"url": url}).json()
+    source = body["source"]
+    assert source["name"] == "WSJ heard on the street"
+    assert source["label"] == "WSJ section"
+    assert source["site"] == "wsj"
+    assert source["feed_url"] == url
+    assert source["credential"] == {"site": "wsj", "set": False}
+    row = con.execute("select * from source where source_id=%s",
+                      (source["source_id"],)).fetchone()
+    assert row["connector"] == "rss"
+    assert row["config"] == {"site": "wsj",
+                             "wsj_section": "heard-on-the-street"}
+
+    # pasting the page again (tracker and all) is the same source
+    r = client.post("/api/sources", json={"url": url + "?mod=hp_nav"})
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Already added as WSJ heard on the street."
+
+
 def test_api_sources_post_youtube_channel(con, monkeypatch):
     client = TestClient(webapp.app)
     feed = "https://www.youtube.com/feeds/videos.xml?channel_id=UCtestchannel1"
@@ -894,6 +921,9 @@ def test_api_status_still_serves_sources(con):
 def test_source_label_covers_every_connector():
     assert webapp.source_label("rss", {"site": "ft"}) == "FT feed"
     assert webapp.source_label("rss", {"site": "wsj"}) == "WSJ feed"
+    assert webapp.source_label(
+        "rss", {"site": "wsj",
+                "wsj_section": "heard-on-the-street"}) == "WSJ section"
     assert webapp.source_label(
         "rss", {"substack": {"origin": "https://x.substack.com"}}) == "Substack"
     assert webapp.source_label("rss", None) == "News feed"

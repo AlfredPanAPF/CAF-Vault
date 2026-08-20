@@ -344,7 +344,50 @@ def test_rule_13_wsj_section(con, net):
     assert r.name == "WSJ markets"
     assert router.resolve(con, "https://www.wsj.com").feed_url == \
         "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"
+    # the sections Dow Jones added feeds for (verified live 2026-08-20)
+    assert router.resolve(con, "https://www.wsj.com/politics").feed_url == \
+        "https://feeds.content.dowjones.io/public/rss/socialpoliticsfeed"
+    assert router.resolve(con, "https://www.wsj.com/us-news").feed_url == \
+        "https://feeds.content.dowjones.io/public/rss/RSSUSnews"
     assert net.calls == []
+
+
+def test_rule_13_wsj_news_listing(con, net):
+    """A /news/ column, article type or author page has no public feed, so the
+    page itself is the feed the poller reads (through the browser path)."""
+    r = router.resolve(con, "https://www.wsj.com/news/heard-on-the-street")
+    assert (r.kind, r.connector, r.label, r.site) == \
+        ("feed", "rss", "WSJ section", "wsj")
+    assert r.feed_url == "https://www.wsj.com/news/heard-on-the-street"
+    assert r.name == "WSJ heard on the street"
+    assert r.config == {"site": "wsj", "wsj_section": "heard-on-the-street"}
+    assert r.credential == {"site": "wsj", "set": False}
+    assert r.message == "The page needs the WSJ sign-in."
+
+    types_r = router.resolve(con, "https://www.wsj.com/news/types/bookshelf")
+    assert (types_r.kind, types_r.label) == ("feed", "WSJ section")
+    assert types_r.config["wsj_section"] == "types/bookshelf"
+    assert types_r.name == "WSJ bookshelf"
+
+    author = router.resolve(con, "https://www.wsj.com/news/author/greg-ip")
+    assert author.config["wsj_section"] == "author/greg-ip"
+    assert author.name == "WSJ Greg Ip"
+    assert net.calls == []
+
+    # once the WSJ sign-in is saved, the note goes away
+    credentials.set(con, "wsj", "DJSESSION=abc")
+    signed = router.resolve(con, "https://www.wsj.com/news/heard-on-the-street")
+    assert signed.credential == {"site": "wsj", "set": True}
+    assert signed.message is None
+
+
+def test_rule_13_wsj_news_paths_that_are_not_listings(con, net):
+    """WSJ's own /news/ utility pages never become sources; they fall through
+    to the network rules, which the fixture leaves dark."""
+    for path in ("news/rss-news-and-feeds", "news/archive", "news/types",
+                 "news/author"):
+        r = router.resolve(con, f"https://www.wsj.com/{path}")
+        assert r.kind == "unsupported", path
 
 
 def test_rule_14_apple_podcasts(con, net):

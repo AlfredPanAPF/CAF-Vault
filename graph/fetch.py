@@ -132,10 +132,14 @@ _HARD_WALL = {
 }
 
 
-def detect_wall(site: str | None, status: int, text: str) -> str | None:
+def detect_wall(site: str | None, status: int, text: str,
+                body_markers: tuple[str, ...] | None = None) -> str | None:
     """Return a short reason when the response is a sign-in / bot wall for
     the site, else None. Only ft and wsj have wall heuristics here; substack,
-    x and youtube are judged by their own clients."""
+    x and youtube are judged by their own clients. `body_markers` names what
+    a non-article page carries when it is whole (a WSJ section listing's
+    embedded JSON); it sits at the tail of the document, so it is checked
+    against the full text, not the head the article markers scan."""
     spec = _WALLS.get(site or "")
     if not spec:
         return None
@@ -144,6 +148,8 @@ def detect_wall(site: str | None, status: int, text: str) -> str | None:
     head = text[:200_000]
     if any(m in head for m in _HARD_WALL.get(site or "", ())):
         return "sign-in page returned"
+    if body_markers and any(m in text for m in body_markers):
+        return None
     if any(m in head for m in spec["body"]):
         return None
     if any(m.lower() in head.lower() for m in spec["wall"]):
@@ -329,11 +335,14 @@ def _read_capped(resp, max_bytes: int) -> bytes:
 def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
         max_bytes: int = MAX_BYTES, headers: dict | None = None,
         cookies: dict | None = None, allow_wall: bool = False,
-        allow_redirects: bool = True) -> Response:
+        allow_redirects: bool = True,
+        body_markers: tuple[str, ...] | None = None) -> Response:
     """GET with a browser fingerprint, the site's cookies, and a byte cap.
     Raises SignInNeeded on a recognised wall unless allow_wall, and
     BlockedAddress when the URL points inside the private network. Transport
-    errors propagate as the underlying library's exceptions."""
+    errors propagate as the underlying library's exceptions. `body_markers`
+    rides through to the sidecar and the wall check for pages that are not
+    articles (browser.get)."""
     host = guard_url(url)
     # FT and WSJ article pages: a real browser first (build spec v4 §10c). The
     # plain path below never gets past their JS walls from a server IP; the
@@ -348,7 +357,7 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
         try:
             resp = browser.get(url, site=site, cookies=site_cookies,
                                timeout=max(timeout, int(browser.budget_s())),
-                               max_bytes=max_bytes)
+                               max_bytes=max_bytes, body_markers=body_markers)
         except browser.BrowserUnavailable as e:
             print(f"browser: sidecar unavailable for {site} ({e}); plain fetch")
         else:
@@ -356,7 +365,7 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
             # path runs on its final URL runs on the rendered page's
             if host_of(resp.url) not in ("", host):
                 guard_url(resp.url)
-            reason = detect_wall(site, resp.status, resp.text)
+            reason = detect_wall(site, resp.status, resp.text, body_markers)
             if reason:
                 raise SignInNeeded(site, reason)
             return resp
@@ -391,7 +400,7 @@ def get(url: str, *, site: str | None = None, con=None, timeout: int = 30,
     if host_of(resp.url) not in ("", host):
         guard_url(resp.url)
     if site and not allow_wall:
-        reason = detect_wall(site, resp.status, resp.text)
+        reason = detect_wall(site, resp.status, resp.text, body_markers)
         if reason:
             raise SignInNeeded(site, reason)
     return resp

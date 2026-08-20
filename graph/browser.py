@@ -108,26 +108,32 @@ def playwright_cookies(cookies: list[dict], site_hosts: tuple[str, ...]) -> list
     return out
 
 
-def _wall_gone(html: str, site: str | None = None) -> bool:
+def _wall_gone(html: str, site: str | None = None,
+               body_markers: tuple[str, ...] | None = None) -> bool:
     """True when the challenge is no longer what the page is showing. A
     document carrying the site's body markers is past the wall whatever else
     it ships, the same precedence `fetch.detect_wall` gives body over wall."""
-    if site and _has_body(html, site):
+    if site and _has_body(html, site, body_markers):
         return True
     return not any(m in html for m in WALL_MARKERS)
 
 
-def _has_body(html: str, site: str | None) -> bool:
-    return any(m in html for m in BODY_MARKERS.get(site or "", ()))
+def _has_body(html: str, site: str | None,
+              body_markers: tuple[str, ...] | None = None) -> bool:
+    markers = body_markers or BODY_MARKERS.get(site or "", ())
+    return any(m in html for m in markers)
 
 
 def get(url: str, *, site: str | None = None, cookies: list[dict] | None = None,
-        timeout: int = 60, max_bytes: int | None = None):
+        timeout: int = 60, max_bytes: int | None = None,
+        body_markers: tuple[str, ...] | None = None):
     """Load `url` in the sidecar with the given Playwright cookies; return a
     graph.fetch.Response with the rendered HTML. Raises BrowserUnavailable
     when the sidecar cannot be reached or the navigation fails outright. A
     wall that never clears is NOT an error here: the HTML comes back and the
-    caller's wall detection reports it."""
+    caller's wall detection reports it. `body_markers` replaces the site's
+    BODY_MARKERS for pages that are not articles (a WSJ section listing),
+    so the wall wait ends when the listing has rendered."""
     from . import fetch  # local import: fetch imports this module
     if not enabled():
         raise BrowserUnavailable("CAF_BROWSER_URL is not set")
@@ -168,8 +174,10 @@ def get(url: str, *, site: str | None = None, cookies: list[dict] | None = None,
                         # start clean.
                         reuse = attempt == 1 and bool(browser.contexts)
                         status, headers, html, final_url = _load(
-                            browser, url, site, cookies, deadline, reuse=reuse)
-                        if _wall_gone(html, site) or attempt >= MAX_ATTEMPTS \
+                            browser, url, site, cookies, deadline, reuse=reuse,
+                            body_markers=body_markers)
+                        if _wall_gone(html, site, body_markers) \
+                                or attempt >= MAX_ATTEMPTS \
                                 or time.monotonic() > deadline - attempt_cost_s():
                             break
                         print(f"browser: wall still up for {site or 'the browser'} "
@@ -191,7 +199,8 @@ def get(url: str, *, site: str | None = None, cookies: list[dict] | None = None,
                            "x-caf-fetched-by": "browser"})
 
 
-def _load(browser, url, site, cookies, deadline, reuse=False):
+def _load(browser, url, site, cookies, deadline, reuse=False,
+          body_markers=None):
     """One navigation: (status, headers, html, final_url). With reuse, the
     remote browser's default (persistent) context is used and only the page
     is closed afterwards; otherwise a throwaway context."""
@@ -216,7 +225,8 @@ def _load(browser, url, site, cookies, deadline, reuse=False):
         html = page.content()
         wall_deadline = min(deadline, time.monotonic() + WALL_WAIT_S)
         while time.monotonic() < wall_deadline:
-            if _wall_gone(html, site) and (_has_body(html, site) or not site):
+            if _wall_gone(html, site, body_markers) and \
+                    (_has_body(html, site, body_markers) or not site):
                 break
             time.sleep(1.5)
             try:
@@ -227,7 +237,7 @@ def _load(browser, url, site, cookies, deadline, reuse=False):
                 # re-read on the next poll. Never substitute "" — an empty
                 # document reads as a cleared wall.
                 continue
-        if _wall_gone(html, site):
+        if _wall_gone(html, site, body_markers):
             time.sleep(SETTLE_S)
             try:
                 html = page.content()
@@ -236,7 +246,7 @@ def _load(browser, url, site, cookies, deadline, reuse=False):
         final_url = page.url
         # the document status after a cleared wall is the page's own;
         # DataDome answers 401 first and 200 on the retry
-        if _wall_gone(html, site) and status in (401, 403):
+        if _wall_gone(html, site, body_markers) and status in (401, 403):
             status = 200
         page.close()
         return status, headers, html, final_url

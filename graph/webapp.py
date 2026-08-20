@@ -301,7 +301,7 @@ def source_label(connector, config):
         if site == "ft":
             return "FT feed"
         if site == "wsj":
-            return "WSJ feed"
+            return "WSJ section" if cfg.get("wsj_section") else "WSJ feed"
         if site == "substack" or cfg.get("substack"):
             return "Substack"
         return "News feed"

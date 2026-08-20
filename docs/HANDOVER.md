@@ -356,6 +356,40 @@ the `claim_asserted` view, not in prompts).
      finding refuted by two skeptics; spec §7a lists what the review
      changed.
 
+- **WSJ /news/ listing sources (2026-08-20, build spec v4 §4 rule 13, listing
+  half):** pasting `wsj.com/news/heard-on-the-street` used to answer "No feed
+  found at this address" — Dow Jones publishes no public feed for the column
+  (their own RSS directory checked live). Now any WSJ `/news/<column>`,
+  `/news/types/<slug>` or `/news/author/<slug>` page becomes a source: kind
+  feed, connector rss, label "WSJ section", the page URL as the feed URL,
+  config `{wsj_section}`. The page is Next.js; `rss.wsj_section_items` reads
+  articleUrl/headline/summary/timestamp from the `__NEXT_DATA__` JSON
+  (`pageProps.latestArticles` / `moreInArticlesInitial` /
+  `authorFeedArticles` — all three route shapes verified against 2026-08-19
+  live captures). The listing itself is DataDome-walled, so it is fetched
+  with wall detection ON and rides the CloakBrowser path when the WSJ
+  sign-in is stored; `WSJ_LISTING_MARKERS` ('"articleUrl"') stands in for
+  the article body markers end to end (`browser.get`/`fetch.get`/
+  `detect_wall` grew an optional `body_markers`), which both ends the
+  sidecar's 30 s wall wait as soon as the listing renders and stops
+  `detect_wall` from reading DataDome's ordinary tags.js ("captcha" in the
+  head) as a barrier. Item pages are ordinary WSJ articles: full text
+  through the sidecar, the listing's one-line summary as the thin teaser
+  when an article walls (HEADLINES_ONLY state), "Sign-in needed" when the
+  listing walls, "No articles found on the page" when the shape changes.
+  Rule 13's feed map also gained the six sections Dow Jones added feeds
+  for (us-news, politics, real-estate, style, health, sports; slugs
+  verified live 2026-08-20). Verified: full suite green (the one
+  `test_youtube_poll_writes_a_caption_transcript` failure is the parallel
+  remote-ASR session's uncommitted youtube.py change, not this work), the
+  parser against real captured pages (15/50/45 items), and live on a
+  scratch DB: `graph add-source` → "WSJ section", `rss.poll` against the
+  real wall → the honest `Sign-in needed` state, `graph serve` →
+  `/api/sources/resolve` returns the full resolution. The sidecar leg
+  (listing through CloakBrowser with the real DJSESSION) can only be
+  proven on the box: after deploy, paste the URL on `/vault/sources` and
+  watch a cycle.
+
 ## What still needs building (recommended order)
 
 1. **Remaining design subsystems**: XBRL structured lane (§4.5), speaker

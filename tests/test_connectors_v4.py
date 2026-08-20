@@ -277,6 +277,158 @@ def test_rss_item_url_matches_the_link_queue_key(con, monkeypatch):
     assert ev["meta"]["item_url"] == "https://strat.example.com/2026/capex"
 
 
+# ------------------------------------------- §6.4 wsj /news/ listing sources
+
+HOTS_URL = "https://www.wsj.com/news/heard-on-the-street"
+HOTS_PAGE = ('<html><head><title>Heard on the Street</title></head><body>'
+             '<script id="__NEXT_DATA__" type="application/json">'
+             + json.dumps({"props": {"pageProps": {
+                 "latestArticles": [
+                     {"articleUrl": "https://www.wsj.com/finance/"
+                                    "auto-insurance-93243754?mod=hots",
+                      "headline": "Auto insurance premiums keep falling",
+                      "summary": "The soft market pleases inflation watchers.",
+                      "timestamp": "2026-08-18T09:30:00Z"},
+                     {"articleUrl": "https://www.wsj.com/video/markets-clip",
+                      "headline": "A markets clip", "summary": "",
+                      "timestamp": "2026-08-18T10:00:00Z", "isVideo": True}],
+                 "moreInArticlesInitial": [
+                     {"articleUrl": "https://www.wsj.com/tech/ai/"
+                                    "open-weight-ai-523e6410",
+                      "headline": "Open-weight AI will not crimp demand",
+                      "summary": "The boom's beneficiaries cash in either way.",
+                      "timestamp": "2026-08-16T09:30:00Z"},
+                     # the same piece appears in both lists on the real page
+                     {"articleUrl": "https://www.wsj.com/finance/"
+                                    "auto-insurance-93243754?mod=hots",
+                      "headline": "Auto insurance premiums keep falling",
+                      "summary": "The soft market pleases inflation watchers.",
+                      "timestamp": "2026-08-18T09:30:00Z"}],
+                 "latestVideos": [
+                     {"articleUrl": "https://www.wsj.com/video/v1",
+                      "headline": "A video",
+                      "timestamp": "2026-08-18T11:00:00Z"}],
+                 "whatsNewsData": [
+                     {"articleUrl": "https://www.wsj.com/economy/"
+                                    "whats-news-abc12345",
+                      "headline": "What's News digest",
+                      "timestamp": "2026-08-18T12:00:00Z"}]}}})
+             + '</script></body></html>')
+
+WSJ_SECTION_ARTICLE = ("<html><head><title>WSJ piece</title></head><body>"
+                       "<section data-type=\"article-body\">"
+                       + "".join(f"<p>{PARA.format(i)}</p>" for i in range(6))
+                       + "</section></body></html>")
+
+
+def wsj_section_source(con):
+    con.execute(
+        "insert into source (name, connector, url, status, config) values "
+        "('WSJ heard on the street', 'rss', %s, 'active', %s)",
+        (HOTS_URL, Jsonb({"site": "wsj", "wsj_section": "heard-on-the-street"})))
+
+
+def test_wsj_section_items_reads_the_listing_json():
+    items = rss.wsj_section_items(HOTS_PAGE)
+    # sidebar lists (latestVideos, whatsNewsData), video rows and the piece
+    # that appears in both column lists never become items
+    assert [i["title"] for i in items] == [
+        "Auto insurance premiums keep falling",
+        "Open-weight AI will not crimp demand"]
+    assert items[0]["date"] == "2026-08-18"
+    assert items[0]["link"] == ("https://www.wsj.com/finance/"
+                                "auto-insurance-93243754?mod=hots")
+    assert items[0]["content_html"] == \
+        "The soft market pleases inflation watchers."
+    assert rss.wsj_section_items("<html><body><p>Not a listing.</p></body>"
+                                 "</html>") == []
+    assert rss.wsj_section_items("") == []
+
+
+def test_rss_wsj_section_polls_the_page_and_fetches_articles(con, monkeypatch):
+    wsj_section_source(con)
+    listing_kw = {}
+
+    def fake_get(url, **kw):
+        if url == HOTS_URL:
+            listing_kw.update(kw)
+            return Resp(HOTS_PAGE)
+        return Resp(WSJ_SECTION_ARTICLE)
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    out = rss.poll(con)
+    assert out["new"] == 2 and out["thin"] == 0 and out["blocked"] == 0
+    # the listing fetch keeps wall detection on and hands the browser path
+    # the listing markers in the article body markers' place
+    assert listing_kw.get("body_markers") == rss.WSJ_LISTING_MARKERS
+    assert "allow_wall" not in listing_kw
+    events = events_of(con, "rss")
+    # item_url is router-normalized (the ?mod= tracker is gone), so a piece
+    # pasted once and met on the page again is one document
+    assert [e["meta"]["item_url"] for e in events] == [
+        "https://www.wsj.com/finance/auto-insurance-93243754",
+        "https://www.wsj.com/tech/ai/open-weight-ai-523e6410"]
+    assert [e["meta"]["title"] for e in events] == [
+        "Auto insurance premiums keep falling",
+        "Open-weight AI will not crimp demand"]
+    assert all(e["meta"]["site"] == "wsj" for e in events)
+    row = source_row(con, "WSJ heard on the street")
+    assert row["last_error"] is None and row["last_polled"] is not None
+    # nothing new on the next cycle: both pieces dedupe on item_url
+    assert rss.poll(con)["duplicate"] == 2
+
+
+def test_rss_wsj_section_wall_keeps_the_page_teasers(con, monkeypatch):
+    """Article pages that wall mid-cycle degrade to the listing's own one-line
+    summaries, the same honest state a WSJ feed source lands in."""
+    wsj_section_source(con)
+    credentials.set(con, "wsj", "DJSESSION=stale")
+
+    def fake_get(url, **kw):
+        if url == HOTS_URL:
+            return Resp(HOTS_PAGE)
+        raise fetch.SignInNeeded("wsj", "HTTP 401")
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    out = rss.poll(con)
+    assert out["new"] == 2 and out["blocked"] == 1 and out["thin"] == 2
+    row = source_row(con, "WSJ heard on the street")
+    assert row["last_error"] == rss.HEADLINES_ONLY
+    events = events_of(con, "rss")
+    assert len(events) == 2
+    assert all(e["meta"]["thin"] for e in events)
+
+
+def test_rss_wsj_section_listing_wall_blocks_the_source(con, monkeypatch):
+    """The listing itself is walled (no sign-in, or the sidecar is down): the
+    source says so and no challenge page is ever parsed for items."""
+    wsj_section_source(con)
+
+    def fake_get(url, **kw):
+        raise fetch.SignInNeeded("wsj", "HTTP 403")
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    out = rss.poll(con)
+    assert out["blocked"] == 1 and out["new"] == 0
+    row = source_row(con, "WSJ heard on the street")
+    assert row["last_error"] == "Sign-in needed"
+    assert events_of(con, "rss") == []
+
+
+def test_rss_wsj_section_without_the_listing_shape_is_reported(con, monkeypatch):
+    """A page that answers without the listing JSON (a redesign) is an error
+    on the sources page, not a healthy source that never delivers."""
+    wsj_section_source(con)
+    monkeypatch.setattr(fetch, "get",
+                        lambda url, **kw: Resp("<html><body><p>New layout."
+                                               "</p></body></html>"))
+    out = rss.poll(con)
+    assert out["errors"] == 1 and out["new"] == 0
+    row = source_row(con, "WSJ heard on the street")
+    assert row["last_error"] == "No articles found on the page"
+    assert row["last_polled"] is not None
+
+
 def test_rss_substack_paid_post_uses_the_post_api(con, monkeypatch):
     con.execute(
         "insert into source (name, connector, url, status, config) values "
