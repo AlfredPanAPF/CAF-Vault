@@ -385,10 +385,12 @@ the `claim_asserted` view, not in prompts).
   parser against real captured pages (15/50/45 items), and live on a
   scratch DB: `graph add-source` → "WSJ section", `rss.poll` against the
   real wall → the honest `Sign-in needed` state, `graph serve` →
-  `/api/sources/resolve` returns the full resolution. The sidecar leg
-  (listing through CloakBrowser with the real DJSESSION) can only be
-  proven on the box: after deploy, paste the URL on `/vault/sources` and
-  watch a cycle.
+  `/api/sources/resolve` returns the full resolution. Deployed in
+  deploy-20260820-091238 (with v6 hardening and the sources-page Copy
+  link button); the resolve endpoint smoked green on the box. The last
+  leg — the listing through CloakBrowser with the real DJSESSION — runs
+  when the owner pastes the URL on `/vault/sources` (their step; they
+  have begun populating production).
 
 - **Remote ASR — whisper runs off-site, not on the box (build spec v7).**
   Measured first (2026-08-19, one real Unhedged episode): the server manages
