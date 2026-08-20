@@ -114,6 +114,22 @@ function seatState(seat: Seat): { label: string; tone: BadgeTone } {
   return { label: "active", tone: "ok" };
 }
 
+function seatResets(iso: string): string {
+  const d = new Date(iso);
+  const day = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(d);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(d);
+  return `resets ${day}, ${time} UTC`;
+}
+
 function SeatsCard({ seats }: { seats: Seat[] }) {
   return (
     <Card>
@@ -137,6 +153,11 @@ function SeatsCard({ seats }: { seats: Seat[] }) {
                   {seat.latched_at && <span>since {timeAgo(seat.latched_at)}</span>}
                   {seat.latched_at && seat.reason && <span> · </span>}
                   {seat.reason}
+                </p>
+              )}
+              {seat.latched && seat.resets_at && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {seatResets(seat.resets_at)}
                 </p>
               )}
             </div>

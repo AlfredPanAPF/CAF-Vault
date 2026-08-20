@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from .. import alerts, config, llm
+from .. import alerts, config, llm, schemas
 from ..pipeline.materialize import half_life_for
 from .funnel import append_history, parse_uuid, record_failure, subject_names
 
@@ -41,7 +41,7 @@ where c.claim_id = any(%s)
 """
 
 
-def _prompt(con, h, names, base) -> str:
+def _prompt(con, h, names) -> str:
     ev = (con.execute(EVIDENCE_SELECT, (list(h["evidence"]),)).fetchall()
           if h["evidence"] else [])
     lines = [json.dumps({
@@ -56,7 +56,7 @@ def _prompt(con, h, names, base) -> str:
         "lineage": str(r["lineage_id"]),
         "observed_at": r["observed_at"].isoformat() if r["observed_at"] else None,
     }, default=str) for r in ev]
-    return (base + "\n\n# Hypothesis\n"
+    return ("# Hypothesis\n"
             + f"statement: {(h['statement'] or {}).get('text') or h['rationale']}\n"
             + f"subjects: {names[0]} and {names[1]}\n"
             + f"rationale: {h['rationale']}\n"
@@ -73,19 +73,30 @@ def run(con) -> dict:
         "order by updated_at, created_at limit %s",
         (config.DISCOVERY["verify_per_cycle"],)).fetchall()
 
-    promoted = parked = refuted = failed = 0
+    promoted = parked = refuted = failed = transient = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
         names = subject_names(con, h["subjects"])
         con.execute("savepoint ver_item")
         try:
-            out = llm.complete_json(_prompt(con, h, names, prompt_base), model)
+            out = llm.complete_json(_prompt(con, h, names), model,
+                                    schema=schemas.VERDICT,
+                                    system=prompt_base)
         except llm.EngineUnavailable as e:
             con.execute("rollback to savepoint ver_item")
             print(f"verify: paused, no model available ({e})")
             paused = True
             break
+        except llm.TransientError as e:
+            # no verdict (timeout, process death): no strike — the message
+            # lands in history without counting toward the two-strike park
+            con.execute("rollback to savepoint ver_item")
+            append_history(con, hid, {"transient": str(e)[:500],
+                                      "stage": "verify"})
+            print(f"verify: item {hid} transient failure ({e})")
+            transient += 1
+            continue
         except Exception as e:
             # one bad item (malformed output, CLI timeout) must not roll back
             # the whole stage or poison the queue head — extract.run pattern
@@ -191,6 +202,7 @@ def run(con) -> dict:
         con.execute("release savepoint ver_item")
 
     print(f"verify: {promoted} promoted, {parked} parked, {refuted} refuted, "
-          f"{failed} failed")
+          f"{failed} failed"
+          + (f", {transient} transient" if transient else ""))
     return {"promoted": promoted, "parked": parked, "refuted": refuted,
-            "failed": failed, "paused": paused}
+            "failed": failed, "transient": transient, "paused": paused}

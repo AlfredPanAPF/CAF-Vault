@@ -7,7 +7,7 @@ loop ends on either budget with a default 'insufficient' conclusion.
 """
 import json
 
-from .. import artifacts, config, llm
+from .. import artifacts, config, llm, schemas
 from .funnel import append_history, parse_uuid, record_failure, subject_names
 from .hypothesize import CLAIM_SELECT, claim_line
 
@@ -68,8 +68,10 @@ def _fetch_segment(con, claim_id) -> str:
 
 
 def _loop(con, h, prompt_base, model) -> dict:
+    # investigation.md rides the system turn; the hypothesis base and the
+    # growing transcript stay in the user turn (spec v6 §2.3)
     names = subject_names(con, h["subjects"])
-    base = (prompt_base + "\n\n# Hypothesis\n"
+    base = ("# Hypothesis\n"
             + f"statement: {(h['statement'] or {}).get('text') or h['rationale']}\n"
             + "subjects: " + ", ".join(
                 f"{n} (entity_id {s})" for n, s in zip(names, h["subjects"]))
@@ -84,7 +86,9 @@ def _loop(con, h, prompt_base, model) -> dict:
     transcript, chars, turns, concluded = [], 0, 0, None
     while turns < budget:
         prompt = base + "".join(transcript) + "\n## Next action\n"
-        action = llm.complete_json(prompt, model)
+        action = llm.complete_json(prompt, model,
+                                   schema=schemas.INVESTIGATE,
+                                   system=prompt_base)
         turns += 1
         chars += len(prompt) + len(json.dumps(action, default=str))
         tool = action.get("tool") if isinstance(action, dict) else None
@@ -150,7 +154,7 @@ def run(con) -> dict:
         "order by score desc nulls last, created_at limit %s",
         (config.DISCOVERY["investigate_per_cycle"],)).fetchall()
 
-    investigated = failed = 0
+    investigated = failed = transient = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
@@ -176,6 +180,16 @@ def run(con) -> dict:
             print(f"investigate: paused, no model available ({e})")
             paused = True
             break
+        except llm.TransientError as e:
+            # no verdict (timeout, process death): the state flip rolls back
+            # with the savepoint, no strike, the message lands in history
+            # without counting toward the two-strike park (spec v6 §5)
+            con.execute("rollback to savepoint inv_item")
+            append_history(con, hid, {"transient": str(e)[:500],
+                                      "stage": "investigate"})
+            print(f"investigate: item {hid} transient failure ({e})")
+            transient += 1
+            continue
         except Exception as e:
             # one bad item (malformed output, CLI timeout) must not roll back
             # the whole stage or poison the queue head — extract.run pattern
@@ -194,5 +208,7 @@ def run(con) -> dict:
         con.execute("release savepoint inv_item")
         investigated += 1
 
-    print(f"investigate: {investigated} investigated, {failed} failed")
-    return {"investigated": investigated, "failed": failed, "paused": paused}
+    print(f"investigate: {investigated} investigated, {failed} failed"
+          + (f", {transient} transient" if transient else ""))
+    return {"investigated": investigated, "failed": failed,
+            "transient": transient, "paused": paused}

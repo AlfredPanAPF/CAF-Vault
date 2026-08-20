@@ -5,7 +5,7 @@ append-only, never a rewrite.
 """
 import re
 
-from .. import config, llm
+from .. import config, llm, schemas
 
 TRIGGER_FIRST = 30      # distinct raws before the first mapping exists
 TRIGGER_UNMAPPED = 20   # distinct raws absent from the current version
@@ -36,8 +36,8 @@ def run(con) -> dict:
     # raws carry their previous canon forward in code below, and the write is
     # still a full version (append-only invariant intact).
     canons_now = sorted(set(prev.values()))
-    prompt = ((config.PROMPTS / "gardener.md").read_text()
-              + "\n\n# Raw predicates (predicate, claim count)\n\n"
+    system = (config.PROMPTS / "gardener.md").read_text()
+    prompt = ("# Raw predicates (predicate, claim count)\n\n"
               + "\n".join(f"{r['raw']}, {r['n']}" for r in unmapped)
               + ("\n\n# Existing canonical predicates (reuse when a raw "
                  "predicate is a synonym of one of these)\n\n"
@@ -46,8 +46,11 @@ def run(con) -> dict:
     # mapping line, floored at the old default and capped at the model limit
     max_tokens = min(max(8000, 12 * len(unmapped) + 500), 32000)
     try:
+        # TransientError falls into the generic catch below: recorded,
+        # nothing burned, the trigger re-fires next cycle
         out = llm.complete_json(prompt, config.MODELS["garden"],
-                                max_tokens=max_tokens)
+                                max_tokens=max_tokens,
+                                schema=schemas.GARDENER, system=system)
         mapping = out.get("mapping")
         if not isinstance(mapping, dict):
             raise ValueError("gardener response has no mapping object")

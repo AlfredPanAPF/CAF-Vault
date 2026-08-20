@@ -3,28 +3,56 @@
 Each event is processed under a savepoint so one bad document (or a mid-write
 DB error) rolls back cleanly and gets its failure recorded without poisoning
 the run's transaction. Commits stay in the CLI layer.
+
+Hardening (build spec v6 §3): the prompt file rides the system turn and the
+CLI enforces the extraction schema, but shape is not substance — an event
+that yields zero mentions AND zero claims, or whose claims are all dropped
+by validation, is a failure, never a success. The 2026-08-20 incident was 8
+documents recorded as extracted with nothing written.
 """
 from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
-from .. import artifacts, config, llm
+from .. import artifacts, config, llm, schemas
+from . import summarize
 
 RESOLVED_TYPES = {"company", "security"}  # v0 resolves only these (design §6)
 
+# body cap for the prompt, matching summarize; the old text[:60000] counted
+# the connector header against the budget
+BODY_CAP = 80000
 
-def run(con, limit=10):
+
+def _context_line(header: dict) -> str:
+    """One line of document facts ahead of the body: title — source, date."""
+    title = (header.get("title") or "").strip()
+    source = (header.get("feed") or header.get("channel")
+              or header.get("origin") or header.get("source_type") or "").strip()
+    date = (header.get("published") or "").strip()
+    tail = ", ".join(p for p in (source, date) if p)
+    if title and tail:
+        return f"{title} — {tail}"
+    return title or tail
+
+
+def run(con, limit=10, exclude=None):
+    """Extract up to `limit` pending events. `exclude` is a mutable set of
+    event ids to skip; failed and transient items are added to it in place so
+    cli._extract_drain attempts each item at most once per drain."""
     prompt_base = (config.PROMPTS / "extraction.md").read_text()
     model = config.MODELS["extract"]
+    exclude = exclude if exclude is not None else set()
     # triage is not null: every event gets its materiality score (and any
     # material_event alert) before extraction consumes it — an untriaged event
     # waits a cycle rather than skipping triage forever (spec §4.1, §8 order)
     events = con.execute(
         "select event_id, artifact_uri, lineage_id, attempts from event "
         "where status='pending' and triage is not null "
-        "order by fetched_at limit %s", (limit,)).fetchall()
+        "and not (event_id = any(%s::uuid[])) "
+        "order by fetched_at limit %s", (list(exclude), limit)).fetchall()
 
-    extracted = failed = n_claims = n_mentions = 0
+    extracted = failed = transient = n_claims = n_mentions = n_dropped = 0
     paused = False
     for ev in events:
         con.execute("savepoint extract_ev")
@@ -32,12 +60,36 @@ def run(con, limit=10):
             con.execute("update event set status='extracting' where event_id=%s",
                         (ev["event_id"],))
             text = artifacts.get(ev["artifact_uri"]).decode("utf-8", errors="replace")
-            prompt = (prompt_base + f"\n\n# Document (doc_id: {ev['event_id']})\n\n"
-                      + text[:60000])
-            result = llm.complete_json(prompt, model, max_tokens=16000)
+            header, body = summarize.split_artifact(text)
+            if len(body) > BODY_CAP:
+                # truncation must at least be visible on the document
+                con.execute(
+                    "update event set meta = coalesce(meta, '{}'::jsonb) "
+                    "|| jsonb_build_object('extract_truncated', true) "
+                    "where event_id=%s", (ev["event_id"],))
+            context = _context_line(header)
+            prompt = (f"# Document (doc_id: {ev['event_id']})\n\n"
+                      + (context + "\n\n" if context else "")
+                      + body[:BODY_CAP])
+            result = llm.complete_json(prompt, model, max_tokens=16000,
+                                       schema=schemas.EXTRACTION,
+                                       system=prompt_base)
+            # claims carry the RESOLVED model id (provenance), not the alias
+            model_used = (llm.last_call_info() or {}).get("model") or model
 
-            n_mentions += write_mentions(con, ev["event_id"], result.get("mentions") or [])
-            n_claims += write_claims(con, ev, model, result.get("claims") or [])
+            wrote_m = write_mentions(con, ev["event_id"],
+                                     result.get("mentions") or [])
+            wrote_c, dropped = write_claims(con, ev, model_used,
+                                            result.get("claims") or [])
+            if wrote_c == 0 and dropped > 0:
+                raise ValueError(f"all {dropped} claims dropped by validation")
+            if wrote_m == 0 and wrote_c == 0:
+                # zero claims with nonzero mentions stays legal (a document
+                # can genuinely assert nothing); zero of both is a failure
+                raise ValueError("empty extraction: 0 mentions, 0 claims")
+            n_mentions += wrote_m
+            n_claims += wrote_c
+            n_dropped += dropped
             defined_terms = result.get("defined_terms") or {}
             if defined_terms:
                 con.execute(
@@ -59,6 +111,16 @@ def run(con, limit=10):
             print(f"extract: paused, no model available ({e})")
             paused = True
             break
+        except llm.TransientError as e:
+            # Timeout / process death: no verdict on the document, so no
+            # strike — the rollback restores status/attempts, the message is
+            # recorded, and the batch moves on (spec v6 §5)
+            con.execute("rollback to savepoint extract_ev")
+            con.execute("update event set last_error=%s where event_id=%s",
+                        (str(e)[:500], ev["event_id"]))
+            print(f"extract: transient failure ({e})")
+            exclude.add(ev["event_id"])
+            transient += 1
         except Exception as e:
             con.execute("rollback to savepoint extract_ev")
             attempts = ev["attempts"] + 1
@@ -67,12 +129,15 @@ def run(con, limit=10):
                 "update event set status=%s, attempts=%s, last_error=%s "
                 "where event_id=%s",
                 (status, attempts, str(e)[:500], ev["event_id"]))
+            exclude.add(ev["event_id"])
             failed += 1
 
     print(f"extract: {extracted} extracted, {failed} failed, "
-          f"{n_mentions} mentions, {n_claims} claims")
-    return {"extracted": extracted, "failed": failed, "paused": paused,
-            "claims": n_claims, "mentions": n_mentions}
+          f"{transient} transient, {n_mentions} mentions, {n_claims} claims"
+          + (f", {n_dropped} claims dropped" if n_dropped else ""))
+    return {"extracted": extracted, "failed": failed, "transient": transient,
+            "paused": paused, "claims": n_claims, "mentions": n_mentions,
+            "claims_dropped": n_dropped}
 
 
 def write_mentions(con, event_id, mentions):
@@ -95,7 +160,9 @@ def write_mentions(con, event_id, mentions):
 
 
 def write_claims(con, ev, model, claims):
-    n = 0
+    """Returns (written, dropped): dropped counts claim dicts the validation
+    guards skipped — the caller fails the event when every claim drops."""
+    n = dropped = 0
     for c in claims:
         subject_surface = ((c.get("subject") or {}).get("surface") or "").strip()
         predicate = (c.get("predicate") or "").strip()
@@ -103,8 +170,10 @@ def write_claims(con, ev, model, claims):
         object_surface = (obj.get("surface") or "").strip() or None
         literal = obj.get("literal")
         if not subject_surface or not predicate:
+            dropped += 1
             continue
         if object_surface is None and literal is None:
+            dropped += 1
             continue  # nothing to hang the claim on; DB check would reject it
         con.execute(
             "insert into claim (subject_surface, predicate_raw, object_surface, "
@@ -118,7 +187,7 @@ def write_claims(con, ev, model, claims):
              parse_iso(c.get("valid_from")), parse_iso(c.get("valid_to")),
              c.get("confidence") or 0.5, model, c.get("evidence_quote")))
         n += 1
-    return n
+    return n, dropped
 
 
 def parse_iso(v):

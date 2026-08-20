@@ -53,6 +53,9 @@ export interface Seat {
   kind: string | null;
   reason: string | null;
   latched_at: string | null;
+  resets_at?: string | null;
+  retry_at?: string | null;
+  utilization?: number | null;
 }
 
 export interface Heartbeat {

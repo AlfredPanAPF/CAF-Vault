@@ -159,7 +159,7 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
         "budget": {"tool_calls": 99},
     }])
     assert hypothesize.run(con) == {"refined": 1, "refuted": 0, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     assert "No recorded relationship between" in calls[0]
     assert "Alpha Devices" in calls[0] and "Beta Systems" in calls[0]
     assert str(claim_a) in calls[0]            # evidence claims serialized
@@ -182,7 +182,7 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
          "confidence": 0.8, "reasoning": "both supply lines are asserted"},
     ])
     assert investigate.run(con) == {"investigated": 1, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     assert str(claim_a) in calls[1]            # claims_about result fed back
     assert " tail tail" in calls[2]            # segment context fed back
     assert "not a valid action" in calls[3]    # corrective reinjection
@@ -203,7 +203,7 @@ def test_full_funnel_promotes_inferred_edge(con, tmp_path, monkeypatch):
         "reasoning": "two independent lineages name the same supplier",
     }])
     assert verify.run(con) == {"promoted": 1, "parked": 0, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "promoted"
     assert h["confidence"] == pytest.approx(0.72)
@@ -272,7 +272,7 @@ def test_single_lineage_parks_with_wake_conditions(con, monkeypatch):
     investigate.run(con)
     # one lineage < 2 required: the code gate degrades promote to park
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "parked"
     assert h["parked_at"] is not None
@@ -332,7 +332,7 @@ def test_refuted_stays_refuted_and_not_regenerated(con, monkeypatch):
     _mock_llm(monkeypatch, [{"statement": "s",
                              "test_plan": {"confirm": [], "refute": ["y"]}}])
     assert hypothesize.run(con) == {"refined": 0, "refuted": 1, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "refuted"
     assert any(e.get("note") == "no falsifiable test plan"
@@ -366,7 +366,7 @@ def test_hypothesize_pause_leaves_state(con, monkeypatch):
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
     assert hypothesize.run(con) == {"refined": 0, "refuted": 0, "failed": 0,
-                                    "paused": True}
+                                    "transient": 0, "paused": True}
     assert _hyp(con, hid) == before
 
 
@@ -379,7 +379,7 @@ def test_investigate_pause_leaves_state(con, monkeypatch):
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
     assert investigate.run(con) == {"investigated": 0, "failed": 0,
-                                    "paused": True}
+                                    "transient": 0, "paused": True}
     # the flip to 'investigating' rolled back with the savepoint
     assert _hyp(con, hid) == before
 
@@ -397,7 +397,7 @@ def test_verify_pause_leaves_state(con, monkeypatch):
     before = _hyp(con, hid)
     monkeypatch.setattr(llm, "complete_json", _unavailable)
     assert verify.run(con) == {"promoted": 0, "parked": 0, "refuted": 0,
-                               "failed": 0, "paused": True}
+                               "failed": 0, "transient": 0, "paused": True}
     assert _hyp(con, hid) == before
     assert con.execute("select 1 from edge where origin='inferred'"
                        ).fetchone() is None
@@ -451,7 +451,7 @@ def test_verify_low_reliability_lineages_collapse_to_one(con, monkeypatch):
     # lineage, so the count gate (not the established gate) parks it
     hid = _mk_verify_pair(con, monkeypatch, "vlow-a", "vlow-b", 0.3, 0.3)
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     h = _assert_parked_with_note(
         con, hid, "promote degraded: 1 independent lineage(s), 2 required")
     verified = [e["verified"] for e in h["history"] if "verified" in e]
@@ -462,7 +462,7 @@ def test_verify_no_established_lineage_parks(con, monkeypatch):
     # both >= LOW but < ESTABLISHED: two independent lineages, none proven
     hid = _mk_verify_pair(con, monkeypatch, "vmid-a", "vmid-b", 0.45, 0.45)
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     _assert_parked_with_note(
         con, hid, "promote degraded: no lineage from an established source")
 
@@ -472,7 +472,7 @@ def test_verify_unscored_lineages_count_as_one(con, monkeypatch):
     # established lineages (§10.4): unproven collapses into one
     hid = _mk_verify_pair(con, monkeypatch, "vnull-a", "vnull-b", None, None)
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     _assert_parked_with_note(
         con, hid, "promote degraded: 1 independent lineage(s), 2 required")
 
@@ -482,7 +482,7 @@ def test_verify_unscored_plus_low_scored_parks(con, monkeypatch):
     # ESTABLISHED — null can never satisfy the established gate
     hid = _mk_verify_pair(con, monkeypatch, "vmix-a", "vmix-b", None, 0.45)
     assert verify.run(con) == {"promoted": 0, "parked": 1, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     _assert_parked_with_note(
         con, hid, "promote degraded: no lineage from an established source")
 
@@ -492,7 +492,7 @@ def test_verify_unscored_plus_established_promotes(con, monkeypatch):
     # one) = 2 independent lineages -> promote
     hid = _mk_verify_pair(con, monkeypatch, "vest-a", "vest-b", None, 0.6)
     assert verify.run(con) == {"promoted": 1, "parked": 0, "refuted": 0,
-                               "failed": 0, "paused": False}
+                               "failed": 0, "transient": 0, "paused": False}
     assert _hyp(con, hid)["state"] == "promoted"
     assert con.execute("select 1 from edge where origin='inferred'"
                        ).fetchone() is not None
@@ -508,7 +508,7 @@ def test_investigate_budget_exhaustion_defaults_insufficient(con, monkeypatch):
     _mock_llm(monkeypatch,
               [{"tool": "claims_about", "entity_id": str(a)}] * 8)
     assert investigate.run(con) == {"investigated": 1, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "investigating"
     assert h["evidence"] == []
@@ -525,7 +525,7 @@ def test_investigate_char_cap_breaks_loop(con, monkeypatch):
     monkeypatch.setitem(config.DISCOVERY, "budget_tokens", 0)
     _mock_llm(monkeypatch, [{"tool": "claims_about", "entity_id": str(a)}])
     assert investigate.run(con) == {"investigated": 1, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     inv = [e for e in _hyp(con, hid)["history"] if "investigated" in e]
     assert inv and inv[0]["investigated"]["assessment"] == "insufficient"
     assert inv[0]["investigated"]["turns"] == 1
@@ -553,7 +553,7 @@ def test_investigate_skips_row_moved_during_batch(con, monkeypatch):
     # h2's guarded flip matches nothing: no flip back, no LLM budget burned
     # (the mock would fail loudly on a second call)
     assert investigate.run(con) == {"investigated": 1, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     assert _hyp(con, h1)["state"] == "investigating"
     assert _hyp(con, h2)["state"] == "refuted"
 
@@ -578,7 +578,7 @@ def test_investigate_item_failure_is_isolated_then_latches(con, monkeypatch):
         ValueError("no valid JSON after 2 attempts"),
     ])
     assert investigate.run(con) == {"investigated": 1, "failed": 1,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     assert _hyp(con, good)["state"] == "investigating"   # work kept
     bd = _hyp(con, bad)
     assert bd["state"] == "triaged"                      # flip rolled back
@@ -589,7 +589,7 @@ def test_investigate_item_failure_is_isolated_then_latches(con, monkeypatch):
     # cycle 2: only bad is still selectable; the second failure parks it
     _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
     assert investigate.run(con) == {"investigated": 0, "failed": 1,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     bd = _hyp(con, bad)
     assert bd["state"] == "parked"
     assert sum(1 for e in bd["history"] if "error" in e) == 2
@@ -600,7 +600,7 @@ def test_investigate_item_failure_is_isolated_then_latches(con, monkeypatch):
 
     monkeypatch.setattr(llm, "complete_json", boom)
     assert investigate.run(con) == {"investigated": 0, "failed": 0,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     assert _hyp(con, bad)["state"] == "parked"
 
 
@@ -610,7 +610,7 @@ def test_hypothesize_item_failure_records_error(con, monkeypatch):
     hid = _mk_hypothesis(con, [a, b], state="triaged")
     _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
     assert hypothesize.run(con) == {"refined": 0, "refuted": 0, "failed": 1,
-                                    "paused": False}
+                                    "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "triaged"
     errs = [e for e in h["history"] if "error" in e]
@@ -627,7 +627,7 @@ def test_verify_item_failure_records_error(con, monkeypatch):
                          history=INVESTIGATED)
     _mock_llm(monkeypatch, [ValueError("no valid JSON after 2 attempts")])
     assert verify.run(con) == {"promoted": 0, "parked": 0, "refuted": 0,
-                               "failed": 1, "paused": False}
+                               "failed": 1, "transient": 0, "paused": False}
     h = _hyp(con, hid)
     assert h["state"] == "investigating"
     errs = [e for e in h["history"] if "error" in e]

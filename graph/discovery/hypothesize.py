@@ -8,7 +8,7 @@ import json
 
 from psycopg.types.json import Jsonb
 
-from .. import config, llm
+from .. import config, llm, schemas
 from .funnel import append_history, record_failure, subject_names
 
 # most recent evidence claims serialized per hypothesis prompt — the stored
@@ -82,27 +82,38 @@ def run(con) -> dict:
         "order by score desc nulls last, created_at limit %s",
         (config.DISCOVERY["hypothesize_per_cycle"],)).fetchall()
 
-    refined = refuted = failed = 0
+    refined = refuted = failed = transient = 0
     paused = False
     for h in rows:
         hid = h["hypothesis_id"]
         names = subject_names(con, h["subjects"])
         con.execute("savepoint hyp_item")
         try:
-            prompt = (prompt_base
-                      + "\n\n# Candidate\n"
+            prompt = ("# Candidate\n"
                       + f"type: {h['type']}\n"
                       + f"subjects: {names[0]} and {names[1]}\n"
                       + f"statement template: {json.dumps(h['statement'])}\n"
                       + f"candidate rationale: {h['rationale']}\n"
                       + "\n# Claim subgraph\n\n"
                       + _subgraph(con, h, names) + "\n")
-            result = llm.complete_json(prompt, model)
+            result = llm.complete_json(prompt, model,
+                                       schema=schemas.HYPOTHESIS,
+                                       system=prompt_base)
         except llm.EngineUnavailable as e:
             con.execute("rollback to savepoint hyp_item")
             print(f"hypothesize: paused, no model available ({e})")
             paused = True
             break
+        except llm.TransientError as e:
+            # no verdict on the item (timeout, process death): no strike —
+            # the row keeps its state, the message lands in history without
+            # counting toward the two-strike park (spec v6 §5)
+            con.execute("rollback to savepoint hyp_item")
+            append_history(con, hid, {"transient": str(e)[:500],
+                                      "stage": "hypothesize"})
+            print(f"hypothesize: item {hid} transient failure ({e})")
+            transient += 1
+            continue
         except Exception as e:
             # one bad item (malformed output, CLI timeout) must not roll back
             # the whole stage or poison the queue head — extract.run pattern
@@ -144,6 +155,7 @@ def run(con) -> dict:
             refined += 1
         con.execute("release savepoint hyp_item")
 
-    print(f"hypothesize: {refined} refined, {refuted} refuted, {failed} failed")
+    print(f"hypothesize: {refined} refined, {refuted} refuted, {failed} failed"
+          + (f", {transient} transient" if transient else ""))
     return {"refined": refined, "refuted": refuted, "failed": failed,
-            "paused": paused}
+            "transient": transient, "paused": paused}

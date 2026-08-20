@@ -15,7 +15,7 @@ worker restart loses at most one chunk.
 """
 from psycopg.types.json import Jsonb
 
-from .. import artifacts, config, credentials, llm
+from .. import artifacts, config, credentials, llm, schemas
 
 SUMMARY_CAP = 2000        # chars kept from the model's summary
 POINTS_CAP = 10           # key points kept
@@ -43,6 +43,7 @@ select ev.event_id, ev.artifact_uri, ev.connector, ev.meta,
 from event ev
 left join document_summary ds on ds.event_id = ev.event_id
 where {EVENT_WHERE}
+  and not (ev.event_id = any(%(exclude)s::uuid[]))
   and (({REQUESTED_WHERE})
        or (%(auto)s and coalesce(ds.status, 'pending') = 'pending'
            and ev.status in ('extracted', 'failed') and ev.triage is not null))
@@ -165,29 +166,37 @@ def _dispose(out) -> tuple[str, list[str]]:
     return summary, points
 
 
-def _prompt(header: dict, body: str, prompt_base: str) -> str:
+def _prompt(header: dict, body: str) -> str:
+    """The per-document user turn; the static prompt file rides the system
+    turn (byte-identical across a batch, the only shape that can get prefix
+    cache reuse — and it separates our instructions from fetched text)."""
     facts = [f"- {k}: {v}" for k, v in header.items()
              if k in ("title", "source_type", "published", "feed", "ticker",
                       "channel", "origin") and v]
     cut = len(body) > config.SUMMARY_MAX_CHARS
     text = body[:config.SUMMARY_MAX_CHARS]
     note = ("\n\n(The text is cut here; the document continues.)" if cut else "")
-    return (prompt_base
-            + "\n\n# Document facts\n\n" + ("\n".join(facts) or "- none")
+    return ("# Document facts\n\n" + ("\n".join(facts) or "- none")
             + "\n\n# Document text\n\n" + text + note)
 
 
-def run(con, limit=None, requested_only=False) -> dict:
+def run(con, limit=None, requested_only=False, exclude=None) -> dict:
     """Summarize up to `limit` candidates (default config.SUMMARIZE_PER_CYCLE;
     0 does nothing). Returns counts plus `paused` and `requested_left`, the
-    page requests still waiting after this call."""
+    page requests still waiting after this call. `exclude` is a mutable set
+    of event ids to skip; transient items are added in place so the drain
+    attempts each row at most once per drain (a transient row keeps its
+    status and attempts, so it would otherwise be re-selected next chunk at
+    up to a 20-minute timeout per attempt)."""
     limit = config.SUMMARIZE_PER_CYCLE if limit is None else max(0, limit)
     prompt_base = (config.PROMPTS / "summary.md").read_text()
     model = config.MODELS["summarize"]
+    exclude = exclude if exclude is not None else set()
     rows = con.execute(CANDIDATES_SQL,
-                       {"auto": not requested_only, "limit": limit}).fetchall()
+                       {"auto": not requested_only, "limit": limit,
+                        "exclude": list(exclude)}).fetchall()
 
-    summarized = skipped = failed = 0
+    summarized = skipped = failed = transient = 0
     paused = False
     for ev in rows:
         con.execute("savepoint summarize_ev")
@@ -201,12 +210,15 @@ def run(con, limit=None, requested_only=False) -> dict:
                 con.execute("release savepoint summarize_ev")
                 skipped += 1
                 continue
-            out = llm.complete_json(_prompt(header, body, prompt_base), model,
-                                    max_tokens=2000)
+            out = llm.complete_json(_prompt(header, body), model,
+                                    max_tokens=2000, schema=schemas.SUMMARY,
+                                    system=prompt_base)
             summary, points = _dispose(out)
+            # the summary row carries the RESOLVED model id (provenance)
+            model_used = (llm.last_call_info() or {}).get("model") or model
             con.execute(DONE_SQL, {
                 "event_id": ev["event_id"], "summary": summary,
-                "key_points": Jsonb(points), "model": model,
+                "key_points": Jsonb(points), "model": model_used,
                 "attempts": ev["attempts"]})
             con.execute("release savepoint summarize_ev")
             summarized += 1
@@ -218,6 +230,18 @@ def run(con, limit=None, requested_only=False) -> dict:
             print(f"summarize: paused, no model available ({e})")
             paused = True
             break
+        except llm.TransientError as e:
+            # timeout / process death: no verdict on the document, so no
+            # strike — status and attempts stay as they were, the message
+            # lands on the row, the batch moves on (spec v6 §5)
+            con.execute("rollback to savepoint summarize_ev")
+            con.execute("release savepoint summarize_ev")
+            con.execute(BOOKKEEPING_SQL, {
+                "event_id": ev["event_id"],
+                "status": ev["summary_status"] or "pending",
+                "attempts": ev["attempts"], "error": error_text(con, e)})
+            exclude.add(ev["event_id"])
+            transient += 1
         except Exception as e:
             con.execute("rollback to savepoint summarize_ev")
             con.execute("release savepoint summarize_ev")
@@ -235,7 +259,9 @@ def run(con, limit=None, requested_only=False) -> dict:
 
     left = requested_count(con)
     print(f"summarize: {summarized} summarized, {skipped} skipped, "
-          f"{failed} failed" + (", paused" if paused else "")
+          f"{failed} failed"
+          + (f", {transient} transient" if transient else "")
+          + (", paused" if paused else "")
           + (f", {left} requested waiting" if left else ""))
     return {"summarized": summarized, "skipped": skipped, "failed": failed,
-            "paused": paused, "requested_left": left}
+            "transient": transient, "paused": paused, "requested_left": left}

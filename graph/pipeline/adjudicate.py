@@ -10,7 +10,7 @@ from collections import Counter
 
 from psycopg.types.json import Jsonb
 
-from .. import artifacts, config, llm
+from .. import artifacts, config, llm, schemas
 from . import resolve
 
 MAX_PASSES = 3
@@ -69,7 +69,14 @@ def apply_decision(con, row, d):
 
     Shared by run() and the review API. Returns (decision, entity_id)."""
     decision = d.get("decision")
-    confidence = d.get("confidence") or 0.8
+    # Scalar fields are coerced before any execute (spec v6 §7): unvalidated
+    # LLM output once landed an OBJECT in a float placeholder and the whole
+    # adjudicate cycle died on 'cannot adapt type dict'. The §2 schema
+    # prevents recurrence at the source; this guards the shared human path.
+    try:
+        confidence = float(d.get("confidence"))
+    except (TypeError, ValueError):
+        confidence = 0.8
     entity_id = None
     if decision == "match":
         entity_id = _match_entity(con, d, row["candidates"])
@@ -90,7 +97,10 @@ def apply_decision(con, row, d):
             "resolver='adjudicated-v1:match', confidence=%s where mention_id=%s",
             (entity_id, confidence, row["mention_id"]))
     elif decision == "new_entity":
-        name = d.get("entity_hint") or row["surface"]
+        hint = d.get("entity_hint")
+        if hint is not None and not isinstance(hint, str):
+            hint = None   # an object/list hint is garbage; use the surface
+        name = hint or row["surface"]
         # get-or-create: the same unregistered company adjudicated from two
         # documents must land on one node, or attribute joins never see a
         # shared supplier (§8.8). Registry-less companies only; exact
@@ -127,8 +137,8 @@ def run(con, limit=20):
         print("adjudicate: queue empty")
         return {}
 
-    parts = [(config.PROMPTS / "er_adjudication.md").read_text(),
-             "\n\n# Mentions to adjudicate\n"]
+    system = (config.PROMPTS / "er_adjudication.md").read_text()
+    parts = ["# Mentions to adjudicate\n"]
     texts = {}
     for r in rows:
         if r["event_id"] not in texts:
@@ -148,7 +158,14 @@ def run(con, limit=20):
         '"confidence"}, ...]} with one entry per mention above, echoing its '
         'mention_id exactly. Set "cik" when matching an SEC candidate and "lei" '
         'when matching a GLEIF candidate.')
-    out = llm.complete_json("".join(parts), config.MODELS["adjudicate"])
+    try:
+        out = llm.complete_json("".join(parts), config.MODELS["adjudicate"],
+                                schema=schemas.ADJUDICATION, system=system)
+    except llm.TransientError as e:
+        # the one batched call died without a verdict: the queue rows keep
+        # their own passes counter untouched and retry next cycle (spec v6 §5)
+        print(f"adjudicate: transient failure ({e})")
+        return {"paused": False, "transient": 1}
     decisions = {str(d.get("mention_id")): d for d in out.get("decisions", [])
                  if isinstance(d, dict) and d.get("mention_id")}
 

@@ -570,7 +570,8 @@ def test_split_artifact():
 def _candidate_ids(con, **kw):
     return [r["event_id"] for r in con.execute(
         summarize.CANDIDATES_SQL,
-        {"auto": not kw.get("requested_only", False), "limit": 500})]
+        {"auto": not kw.get("requested_only", False), "limit": 500,
+         "exclude": []})]
 
 
 def test_summarize_request_run_and_states(con, monkeypatch, tmp_path):
@@ -632,7 +633,7 @@ def test_summarize_request_run_and_states(con, monkeypatch, tmp_path):
     if True:  # noqa: one block, shared monkeypatches
         out = summarize.run(con, limit=2, requested_only=True)
         assert out == {"summarized": 1, "skipped": 0, "failed": 0,
-                       "paused": False, "requested_left": 0}
+                       "transient": 0, "paused": False, "requested_left": 0}
         con.commit()
         row = con.execute("select * from document_summary where event_id=%s",
                           (requested,)).fetchone()
@@ -652,7 +653,7 @@ def test_summarize_request_run_and_states(con, monkeypatch, tmp_path):
         prompts.clear()
         out = summarize.run(con, limit=2)
         assert out == {"summarized": 1, "skipped": 1, "failed": 0,
-                       "paused": False, "requested_left": 0}
+                       "transient": 0, "paused": False, "requested_left": 0}
         con.commit()
         # limit 0 is a no-op, not the default
         assert summarize.run(con, limit=0)["summarized"] == 0
@@ -859,7 +860,7 @@ def test_nap_loop_answers_summary_requests(monkeypatch):
 
     # nothing waiting: no stage call
     monkeypatch.setattr(cli, "_summaries_requested", lambda: 0)
-    stage.result = {"paused": False, "requested_left": 0}
+    stage.result = {"transient": 0, "paused": False, "requested_left": 0}
     assert cli._answer_summary_requests(stage, 0.0, 1000.0) == 0.0
     assert calls == []
 

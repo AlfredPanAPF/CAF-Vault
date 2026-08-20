@@ -262,6 +262,9 @@ def cmd_quality(args):
 
 
 def cmd_run(args):
+    # a typo in a CAF_MODEL_* env var fails here with a message, not
+    # per-event with an opaque CLI error (spec v6 §4.6)
+    llm.validate_models(config.MODELS)
     with db.connect() as con:
         stages = [
             ("edgar", lambda: edgar.poll(con)),
@@ -319,17 +322,28 @@ def cmd_serve(args):
 
 
 def _extract_drain(con, batch=10):
-    """Run extraction in batches until no pending event makes progress."""
-    total = {"extracted": 0, "failed": 0, "claims": 0, "mentions": 0}
+    """Run extraction in batches until no pending event makes progress.
+
+    The exclude set makes each event attempted at most once per drain: a
+    failed item used to be re-selected in the same drain and reach 'failed'
+    within one cycle (and the drain's failed counter double-counted); a
+    transient item rolls back to pending with attempts untouched and would
+    otherwise be re-selected at up to a 20-minute timeout per attempt.
+    Second strikes now happen a cycle later, which is the intent of having
+    two (spec v6 §5)."""
+    total = {"extracted": 0, "failed": 0, "transient": 0, "claims": 0,
+             "mentions": 0, "claims_dropped": 0, "paused": False}
+    exclude = set()
     while True:
-        out = extract.run(con, limit=batch)
+        out = extract.run(con, limit=batch, exclude=exclude)
         con.commit()
-        for k in total:
+        for k in ("extracted", "failed", "transient", "claims", "mentions",
+                  "claims_dropped"):
             total[k] += out.get(k, 0)
         if out.get("paused"):
             total["paused"] = True
             return total
-        if out["extracted"] + out["failed"] == 0:
+        if out["extracted"] + out["failed"] + out["transient"] == 0:
             return total
 
 
@@ -343,16 +357,22 @@ def _summarize_drain(con, limit=None, requested_only=False):
     the row being written waits seconds, not a whole batch, and a worker
     restart mid-way loses one chunk of model calls, not thirty."""
     cap = config.SUMMARIZE_PER_CYCLE if limit is None else max(0, limit)
-    total = {"summarized": 0, "skipped": 0, "failed": 0, "paused": False,
-             "requested_left": 0}
+    total = {"summarized": 0, "skipped": 0, "failed": 0, "transient": 0,
+             "paused": False, "requested_left": 0}
     done = 0
+    exclude = set()
     while done < cap:
         out = summarize.run(con, limit=min(SUMMARIZE_CHUNK, cap - done),
-                            requested_only=requested_only)
+                            requested_only=requested_only, exclude=exclude)
         con.commit()
-        for k in ("summarized", "skipped", "failed"):
-            total[k] += out[k]
-        progressed = out["summarized"] + out["skipped"] + out["failed"]
+        for k in ("summarized", "skipped", "failed", "transient"):
+            total[k] += out.get(k, 0)
+        # a transient item keeps its status and attempts; the exclude set
+        # stops the drain re-selecting it next chunk (at up to a 20-minute
+        # timeout per attempt), and its model call still counts against the
+        # per-cycle cap
+        progressed = (out["summarized"] + out["skipped"] + out["failed"]
+                      + out["transient"])
         done += progressed
         if out["paused"]:
             total["paused"] = True
@@ -361,6 +381,21 @@ def _summarize_drain(con, limit=None, requested_only=False):
             break
     total["requested_left"] = summarize.requested_count(con)
     return total
+
+
+def _llm_rollup(calls):
+    """Fold the drained per-call usage records into one stage_run.summary
+    entry — the answer to "which stage burned the weekly pool", recorded
+    even for failed calls (spec v6 §6)."""
+    return {
+        "calls": len(calls),
+        "input_tokens": sum(c.get("input_tokens") or 0 for c in calls),
+        "output_tokens": sum(c.get("output_tokens") or 0 for c in calls),
+        "cache_read_tokens": sum(
+            c.get("cache_read_input_tokens") or 0 for c in calls),
+        "cost_usd": round(sum(c.get("total_cost_usd") or 0 for c in calls), 6),
+        "duration_ms": sum(c.get("duration_ms") or 0 for c in calls),
+    }
 
 
 def _stage_begin(name):
@@ -466,6 +501,7 @@ def cmd_loop(args):
     Per-stage errors are logged and never kill the loop. Every stage call is
     recorded in stage_run; each cycle upserts the worker_heartbeat KV; between
     cycles the sleep is a series of <=15s naps that watch for run_requested."""
+    llm.validate_models(config.MODELS)   # fail at boot, not per-event (§4.6)
     migrate_with_retry(window_s=120)
     with db.connect() as con:
         # Reference data only. Sources (watchlist, feeds) are never preloaded
@@ -491,18 +527,28 @@ def cmd_loop(args):
 
     def stage(name, fn):
         # fresh connection per stage: one stage's failure (or a dropped
-        # postgres connection) never poisons the rest of the cycle
+        # postgres connection) never poisons the rest of the cycle. The call
+        # log is drained on BOTH paths so one stage's LLM usage never leaks
+        # into the next stage's rollup.
         run_id = _stage_begin(name)
         try:
             with db.connect() as con:
                 out = fn(con)
                 con.commit()
             print(f"{name}: {out}")
-            _stage_finish(run_id, summary=out)
+            summary = out
+            calls = llm.take_call_log()
+            if calls:
+                base = out if isinstance(out, dict) else (
+                    {} if out is None else {"result": out})
+                summary = {**base, "llm": _llm_rollup(calls)}
+            _stage_finish(run_id, summary=summary)
             return out
         except Exception as e:
             print(f"{name}: ERROR {e!r}")
-            _stage_finish(run_id, error=repr(e))
+            calls = llm.take_call_log()
+            _stage_finish(run_id, error=repr(e), summary=(
+                {"llm": _llm_rollup(calls)} if calls else None))
             return None
 
     cycle = 0

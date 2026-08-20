@@ -305,10 +305,13 @@ def test_health_and_unknown_api_path():
 
 def test_seat_status(monkeypatch):
     monkeypatch.setattr(llm, "_SEATS", None)
+    monkeypatch.setattr(llm, "_load_latches", lambda seats: None)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN_VAULT_1", "tok-a")
     assert llm.seat_status() == [{"seat": 1, "has_token": True,
                                   "latched": False, "kind": None,
-                                  "reason": "", "latched_at": None}]
+                                  "reason": "", "latched_at": None,
+                                  "resets_at": None, "retry_at": None,
+                                  "utilization": None}]
     monkeypatch.setattr(llm, "_SEATS", None)   # drop the fake seat pool
 
 
@@ -543,6 +546,216 @@ def test_api_run_now(con):
 
     con.execute("delete from app_kv where key='run_requested'")
     con.commit()
+
+
+def _pending_event(con, tmp_path, text, name):
+    """Ingest a file and mark it triaged so extract can see it. The triage
+    score is set directly: a global triage.run would un-gate other files'
+    committed pending events (shared-DB rule) and widen the batch."""
+    doc = tmp_path / name
+    doc.write_text(text)
+    event_id = manual.ingest_file(con, str(doc))
+    assert event_id is not None
+    con.execute("update event set triage = '{\"score\": 0.5}'::jsonb "
+                "where event_id=%s", (event_id,))
+    return event_id
+
+
+def _row(con, event_id):
+    return con.execute("select * from event where event_id=%s",
+                       (event_id,)).fetchone()
+
+
+def test_extract_empty_result_guard(con, tmp_path, monkeypatch):
+    """A conforming {"mentions": [], "claims": []} must never be recorded as
+    success (spec v6 §3) — the 2026-08-20 incident was 8 documents marked
+    extracted with zero rows written."""
+    event_id = _pending_event(con, tmp_path, "An empty-ish note xkq1.",
+                              "empty-guard.txt")
+    monkeypatch.setattr(llm, "complete_json",
+                        lambda *a, **k: {"mentions": [], "claims": []})
+    out = extract.run(con, limit=50)
+    assert out["extracted"] == 0 and out["failed"] >= 1
+    row = _row(con, event_id)
+    assert row["status"] == "pending" and row["attempts"] == 1
+    assert "empty extraction" in row["last_error"]
+
+    # zero claims with nonzero mentions stays legal
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: {
+        "mentions": [{"surface": "Nvidia", "type": "company"}], "claims": []})
+    extract.run(con, limit=50)
+    row = _row(con, event_id)
+    assert row["status"] == "extracted"
+    assert con.execute("select count(*) n from mention where event_id=%s",
+                       (event_id,)).fetchone()["n"] == 1
+
+
+def test_extract_all_claims_dropped_guard(con, tmp_path, monkeypatch):
+    event_id = _pending_event(con, tmp_path, "A note about nothing xkq2.",
+                              "dropped-guard.txt")
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: {
+        "mentions": [{"surface": "Nvidia", "type": "company"}],
+        "claims": [
+            {"subject": {"surface": ""}, "predicate": "supplies",
+             "object": {"surface": "AMD"}},
+            {"subject": {"surface": "Nvidia"}, "predicate": "supplies",
+             "object": {}},
+        ]})
+    out = extract.run(con, limit=50)
+    assert out["failed"] >= 1
+    row = _row(con, event_id)
+    assert row["status"] == "pending" and row["attempts"] == 1
+    assert "all 2 claims dropped by validation" in row["last_error"]
+    # leave nothing readable behind (shared-DB rule)
+    con.execute("update event set status='failed', attempts=2 "
+                "where event_id=%s", (event_id,))
+
+
+def test_extract_truncation_flag_and_transient(con, tmp_path, monkeypatch):
+    event_id = _pending_event(con, tmp_path,
+                              "Nvidia ships boards. " * 40, "truncate-me.txt")
+    monkeypatch.setattr(extract, "BODY_CAP", 100)
+    prompts = []
+
+    def fake(prompt, model, **kw):
+        prompts.append(prompt)
+        return {"mentions": [{"surface": "Nvidia", "type": "company"}],
+                "claims": []}
+
+    monkeypatch.setattr(llm, "complete_json", fake)
+    extract.run(con, limit=50)
+    row = _row(con, event_id)
+    assert row["status"] == "extracted"
+    assert row["meta"]["extract_truncated"] is True
+    # scoped: the batch may contain other files' committed strays
+    mine = [p for p in prompts if str(event_id) in p]
+    assert len(mine) == 1 and "Nvidia ships boards." in mine[0]
+
+    # a transient failure burns nothing: status and attempts as they were
+    event2 = _pending_event(con, tmp_path, "Another note xkq3.",
+                            "transient.txt")
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: (
+        (_ for _ in ()).throw(llm.TransientError("claude code call timed "
+                                                 "out after 1200s"))))
+    out = extract.run(con, limit=50)
+    assert out["transient"] >= 1 and out["paused"] is False
+    row = _row(con, event2)
+    assert row["status"] == "pending" and row["attempts"] == 0
+    assert "timed out" in row["last_error"]
+    con.execute("update event set status='failed', attempts=2 "
+                "where event_id=%s", (event2,))
+
+
+def test_extract_drain_single_strike(con, tmp_path, monkeypatch):
+    """One attempt per item per drain: an event that fails attempt 1 must not
+    be re-selected in the same drain and reach 'failed' within one cycle,
+    and the drain's failed counter must count events, not attempts."""
+    event_id = _pending_event(con, tmp_path, "A doomed note xkq4.",
+                              "doomed.txt")
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: (
+        (_ for _ in ()).throw(ValueError("model exploded"))))
+
+    def readable(sql="select count(*) n from event "
+                     "where status='pending' and triage is not null"):
+        # the suite shares one DB: other files' committed strays can be in
+        # the batch, so counter assertions are scoped to what is readable
+        return con.execute(sql).fetchone()["n"]
+
+    before = readable()
+    out = cli._extract_drain(con)
+    # every readable event failed exactly once: events, not attempts
+    assert out["failed"] == before and out["paused"] is False
+    row = _row(con, event_id)
+    assert row["status"] == "pending" and row["attempts"] == 1
+
+    # the second strike lands a cycle later, which is the intent of two
+    before = readable()
+    out = cli._extract_drain(con)
+    assert out["failed"] == before
+    row = _row(con, event_id)
+    assert row["status"] == "failed" and row["attempts"] == 2
+    con.commit()   # the drain commits; leave the terminal state committed
+
+
+def test_summarize_drain_attempts_a_transient_row_once(con, tmp_path,
+                                                       monkeypatch):
+    """A transient summarize row keeps its status and attempts, so without
+    the exclude set the drain would re-select it every chunk at up to a
+    20-minute timeout per attempt (v6 review finding)."""
+    doc = tmp_path / "transient-summary.txt"
+    doc.write_text("Nvidia supplies boards to a partner. " * 30)
+    event_id = manual.ingest_file(con, str(doc))
+    con.execute("update event set status='extracted', "
+                "triage='{\"score\": 0.5}'::jsonb where event_id=%s",
+                (event_id,))
+    summarize.request(con, event_id)
+    con.commit()
+    monkeypatch.setattr(config, "SUMMARY_MIN_CHARS", 10)
+    calls = {"n": 0}
+
+    def transient(*a, **k):
+        calls["n"] += 1
+        raise llm.TransientError("claude code call timed out after 1200s")
+
+    monkeypatch.setattr(llm, "complete_json", transient)
+    out = cli._summarize_drain(con, limit=10, requested_only=True)
+    assert calls["n"] == 1                     # once per drain, not per chunk
+    assert out["transient"] == 1 and out["failed"] == 0
+    row = con.execute("select status, attempts from document_summary "
+                      "where event_id=%s", (event_id,)).fetchone()
+    assert row["status"] == "requested" and row["attempts"] == 0
+    # the drain committed the fixtures; leave nothing another file would eat
+    con.execute("delete from document_summary where event_id=%s", (event_id,))
+    con.execute("update event set status='failed', attempts=2 "
+                "where event_id=%s", (event_id,))
+    con.commit()
+
+
+def test_adjudicate_object_valued_scalars_are_coerced(con, monkeypatch):
+    """§7 regression: the model once emitted objects where scalars were
+    expected and the whole adjudicate cycle died on 'cannot adapt type
+    dict'. Scalar decision fields are coerced before any execute."""
+    from graph.pipeline import adjudicate as adj
+
+    event_id, _ = _mk_event(con, connector="rss", source_name="coerce-feed")
+    mention_id = con.execute(
+        "insert into mention (event_id, surface, resolver) values "
+        "(%s, 'Qux Materials', 'queued') returning mention_id",
+        (event_id,)).fetchone()["mention_id"]
+    con.execute("insert into er_queue (mention_id, candidates) "
+                "values (%s, '[]'::jsonb)", (mention_id,))
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: {"decisions": [{
+        "mention_id": str(mention_id), "decision": "new_entity",
+        "entity_hint": {"name": "an object, not a string"},
+        "confidence": {"score": 0.9},
+    }]})
+    out = adj.run(con, limit=200)
+    assert out.get("new_entity", 0) >= 1
+    row = con.execute(
+        "select m.resolver, m.confidence, e.canonical_name from mention m "
+        "join entity e on e.entity_id = m.resolved_entity "
+        "where m.mention_id=%s", (mention_id,)).fetchone()
+    assert row["resolver"] == "adjudicated-v1:new_entity"
+    assert float(row["confidence"]) == 0.8     # object confidence -> fallback
+    assert row["canonical_name"] == "Qux Materials"   # object hint discarded
+
+
+def test_adjudicate_transient_leaves_the_queue_untouched(con, monkeypatch):
+    from graph.pipeline import adjudicate as adj
+
+    event_id, _ = _mk_event(con, connector="rss", source_name="transient-feed")
+    mention_id = con.execute(
+        "insert into mention (event_id, surface, resolver) values "
+        "(%s, 'Transient Co xkq5', 'queued') returning mention_id",
+        (event_id,)).fetchone()["mention_id"]
+    con.execute("insert into er_queue (mention_id, candidates) "
+                "values (%s, '[]'::jsonb)", (mention_id,))
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: (
+        (_ for _ in ()).throw(llm.TransientError("process died"))))
+    assert adj.run(con, limit=200) == {"paused": False, "transient": 1}
+    row = con.execute("select status, decision from er_queue "
+                      "where mention_id=%s", (mention_id,)).fetchone()
+    assert row["status"] == "pending" and row["decision"] is None
 
 
 def test_new_entity_dedup_and_created_entity_tier(con):

@@ -75,7 +75,7 @@ ER precision guards exist because of real false positives: a ticker match needs 
 
 ### LLM engine (`graph/llm.py`)
 
-Two engines behind `complete()` / `complete_json()`: `claude_code` (default; `claude-agent-sdk` on subscription seats `CLAUDE_CODE_OAUTH_TOKEN_VAULT_1..N`, local `claude` login on dev Macs) and `api` (`ANTHROPIC_API_KEY`). Models per stage are in `config.MODELS` (env-overridable). When no engine path is live, every LLM stage pauses cleanly and never burns an event's attempts; heuristic stages keep running. Per-call env must scrub `ANTHROPIC_API_KEY` last or an inherited key silently bills the metered account.
+Two engines behind `complete()` / `complete_json()`: `claude_code` (default; `claude-agent-sdk` on subscription seats `CLAUDE_CODE_OAUTH_TOKEN_VAULT_1..N`, local `claude` login on dev Macs) and `api` (`ANTHROPIC_API_KEY`; legacy, never extended). Models per stage are in `config.MODELS` (env-overridable; a typo fails at worker boot via `llm.validate_models`). When no engine path is live, every LLM stage pauses cleanly and never burns an event's attempts; heuristic stages keep running. Per-call env must scrub `ANTHROPIC_API_KEY` last or an inherited key silently bills the metered account. Hardening (build spec v6): every stage passes its `graph/schemas.py` JSON schema, which the CLI enforces server-side (`output_format`), with the static prompt file riding the system turn; `llm.TransientError` (timeout, process death) burns no attempts or strikes anywhere; quota latches key off the SDK's RateLimitEvent, honour `resets_at`, and survive restarts via the `app_kv` `seat_latches` mirror; seat token values are scrubbed from every reason, exception and status.
 
 ### Sources (build spec v4)
 
