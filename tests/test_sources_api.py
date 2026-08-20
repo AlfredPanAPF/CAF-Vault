@@ -441,6 +441,59 @@ def test_ft_probe_tells_a_live_session_from_a_bot_wall(con, monkeypatch):
     con.rollback()
 
 
+def test_wsj_probe_skips_a_live_blog_for_a_real_article(con, monkeypatch):
+    # the WSJ markets feed leads with a `/livecoverage/` live blog, which has
+    # no article body and renders a subscribe overlay however good the sign-in
+    # is. The probe must step past it to a real article and read that.
+    credentials.set(con, "wsj", "DJSESSION=live-session")
+    feed = ("<rss><channel><title>WSJ markets</title>"
+            "<item><title>Stocks today</title>"
+            "<link>https://www.wsj.com/livecoverage/stock-market-08-20</link>"
+            "</item>"
+            "<item><title>Real article</title>"
+            "<link>https://www.wsj.com/articles/a-real-one</link>"
+            "</item></channel></rss>")
+    teaser = ("<html><head><title>Live</title></head><body><article>"
+              "<p>Stocks rose. Subscribe Now to continue.</p>"
+              "</article></body></html>")
+    seen = []
+
+    def fake_get(url, **kw):
+        seen.append(url)
+        if "dowjones.io" in url:
+            return FakeResponse(feed)
+        if "/livecoverage/" in url:
+            return FakeResponse(teaser)
+        return FakeResponse(article_html("wsj markets"))
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    assert probes.run(con, "wsj") == (True, "Signed in.")
+    # it reached the real article, not the live blog
+    assert any("/articles/a-real-one" in u for u in seen)
+    con.rollback()
+
+
+def test_wsj_probe_reports_a_teaser_when_nothing_unlocks(con, monkeypatch):
+    # only a live blog on offer, and it comes back as the teaser: an honest
+    # "no text" rather than a wall (nothing raised SignInNeeded)
+    credentials.set(con, "wsj", "DJSESSION=stale")
+    feed = ("<rss><channel><title>WSJ markets</title>"
+            "<item><title>Stocks today</title>"
+            "<link>https://www.wsj.com/livecoverage/stock-market-08-20</link>"
+            "</item></channel></rss>")
+    teaser = ("<html><head><title>Live</title></head><body><article>"
+              "<p>Stocks rose.</p></article></body></html>")
+
+    def fake_get(url, **kw):
+        return FakeResponse(feed if "dowjones.io" in url else teaser)
+
+    monkeypatch.setattr(fetch, "get", fake_get)
+    ok, message = probes.run(con, "wsj")
+    assert ok is False
+    assert message == "Sign-in failed: the article came back without its text."
+    con.rollback()
+
+
 # ---------------------------------------------------------------- substack
 
 FULL_POST = "<p>" + ("Every word of the paid post, for subscribers. " * 60) + "</p>"

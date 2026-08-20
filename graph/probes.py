@@ -38,6 +38,7 @@ from .connectors import youtube as youtube_connector
 
 TIMEOUT = 20
 MIN_BODY = 400        # §7: the article body must arrive, not the teaser
+ARTICLE_TRIES = 2     # candidate articles to try before calling it walled
 OK = "Signed in."
 WALLED = ("Signed in, but the article page came back behind {site}'s wall this "
           "time. Headlines still flow from the feeds; article text arrives when "
@@ -101,10 +102,35 @@ def _ft_session_live(con) -> bool | None:
     return None
 
 
+# Feed items that are not a normal article body: WSJ live blogs
+# (`/livecoverage/...`) render a subscribe overlay and no article paragraphs,
+# so they extract to a teaser however good the sign-in is; video and podcast
+# pages the same. Testing one of these would fail a perfectly live session, so
+# the probe steps past them to a real article.
+_NOT_AN_ARTICLE = ("/livecoverage/", "/video/", "/videos/", "/podcasts/",
+                   "/podcast/", "/live/")
+
+
+def _article_links(site: str, feed_text: str) -> list[str]:
+    """Feed links worth testing the sign-in against: real article pages first,
+    the rest kept as a fallback so an all-live-blog feed still tries something."""
+    links, fallback = [], []
+    for item in rss.items(feed_text):
+        link = item.get("link") or ""
+        if not link:
+            continue
+        (fallback if any(p in link.lower() for p in _NOT_AN_ARTICLE)
+         else links).append(link)
+    return links + fallback
+
+
 def _article_probe(con, site: str) -> tuple[bool, str]:
-    """FT / WSJ: newest item from the public feed, then the article page with
-    the cookies attached. A wall raises SignInNeeded; a body under 400
-    characters means the page came back without its text."""
+    """FT / WSJ: the newest real article from the public feed, fetched with the
+    cookies attached. A wall raises SignInNeeded; a body under 400 characters
+    means the page came back without its text. Live blogs and video pages are
+    skipped: they never carry an article body, so one would fail a live
+    sign-in. Up to ARTICLE_TRIES articles are tried before calling it walled,
+    so a single thin page is not the whole verdict."""
     label = credentials.SITES[site]["label"]
     session = _ft_session_live(con) if site == "ft" else None
     if session is False:
@@ -112,21 +138,25 @@ def _article_probe(con, site: str) -> tuple[bool, str]:
                       "and paste a fresh cookies.txt")
     text = fetch.get(FEEDS[site], site=site, con=con, timeout=TIMEOUT,
                      allow_wall=True).text
-    item = next(iter(rss.items(text)), None)
-    if item is None:
+    links = _article_links(site, text)
+    if not links:
         return failed("the feed came back empty")
-    try:
-        html = fetch.get(item["link"], site=site, con=con, timeout=TIMEOUT).text
-    except fetch.SignInNeeded as e:
-        if session is True:
-            return False, WALLED.format(site=label)
-        raise e
-    _title, _published, body = manual.extract_article(html, item["link"])
-    if len(body) < MIN_BODY:
-        if session is True:
-            return False, WALLED.format(site=label)
-        return failed("the article came back without its text")
-    return True, OK
+    wall_detail = None
+    for link in links[:ARTICLE_TRIES]:
+        try:
+            html = fetch.get(link, site=site, con=con, timeout=TIMEOUT).text
+        except fetch.SignInNeeded as e:
+            wall_detail = e.detail or "the site asked for a sign-in"
+            continue
+        _title, _published, body = manual.extract_article(html, link)
+        if len(body) >= MIN_BODY:
+            return True, OK
+    # nothing came back with its text
+    if session is True:
+        return False, WALLED.format(site=label)
+    if wall_detail is not None:
+        return failed(wall_detail)
+    return failed("the article came back without its text")
 
 
 def substack_post_ref(url: str, con=None) -> tuple[str, str]:
