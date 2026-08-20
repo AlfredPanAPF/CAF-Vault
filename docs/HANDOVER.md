@@ -308,7 +308,18 @@ the `claim_asserted` view, not in prompts).
      on the dev Mac: real documents (an FT upload, an NVDA 8-K, a pending
      article requested from the page and picked up by `graph summarize
      --requested` while the page polled) summarized in ~10 s each on the
-     local `claude` login, analyst-grade output.
+     local `claude` login, analyst-grade output. Deployed and verified in
+     production (deploy-20260820-091500): schema 012/013 applied on boot,
+     13 real documents summarized in the first cycle on the seat pool.
+  5. *Quota-latch fix (same deploy, `graph/llm.py`):* the CLI's current
+     quota phrasing ("You've hit your weekly limit · resets Aug 21, 3am
+     (UTC)") matched none of `_QUOTA_PATTERN`'s alternatives, so the seat
+     never latched and extract/summarize burned two attempts per item on a
+     dead seat (9 production events + summary rows went to `failed` during
+     the 2026-08-20 quota window; reset by hand after the fix deployed).
+     The pattern now covers the "hit your … limit" / "resets <Month> <day>"
+     family, with a regression test pinning every phrasing. Three seat
+     tokens are live in production; seat 1 latches and rotation carries on.
   2. *API* (`graph/webapp.py`): `GET /api/documents` (q, source, type,
      status, days, ticker; the default view hides copies), `GET
      /api/documents/sources` (every source with a document, buckets and
