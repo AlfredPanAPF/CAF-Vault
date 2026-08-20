@@ -270,6 +270,31 @@ function sourceStatus(status: string): { label: string; tone: BadgeTone } {
   return { label: status, tone: "neutral" };
 }
 
+/** navigator.clipboard needs a secure context (the vault is served over
+ * HTTPS, dev on localhost); the textarea path covers anything else. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fall through to the textarea path
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 /** What a one-off link came back as, for toasts (spec §8). */
 function linkMessage(link: LinkRow): { text: string; ok: boolean } {
   if (link.status === "done") return { text: "Added.", ok: true };
@@ -289,13 +314,16 @@ function SourcesCard({ sources }: { sources: SourceItem[] }) {
   const [name, setName] = useState("");
   const [resolution, setResolution] = useState<Resolution | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const asked = useRef("");
   const confirmTimer = useRef<number | null>(null);
   const resolveTimer = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
     if (confirmTimer.current !== null) window.clearTimeout(confirmTimer.current);
     if (resolveTimer.current !== null) window.clearTimeout(resolveTimer.current);
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
   }, []);
 
   const invalidate = () => {
@@ -407,6 +435,18 @@ function SourcesCard({ sources }: { sources: SourceItem[] }) {
     confirmTimer.current = window.setTimeout(() => setConfirmId(null), 3000);
   };
 
+  // The button itself says "Copied" for a moment; a toast would be loud for
+  // an action that changes nothing.
+  const copyLink = async (source: SourceItem) => {
+    if (!(await copyText(source.url))) {
+      toast.error("Could not copy the link.");
+      return;
+    }
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+    setCopiedId(source.source_id);
+    copyTimer.current = window.setTimeout(() => setCopiedId(null), 1500);
+  };
+
   const unsupported = resolution?.kind === "unsupported";
   // the router already wrote the note (router.py NOTES); re-deriving it here
   // drifted from the API, which knows a free Substack needs no sign-in at all
@@ -421,6 +461,12 @@ function SourcesCard({ sources }: { sources: SourceItem[] }) {
         <CardTitle>Sources</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 p-0 pb-3">
+        {/* The button's label flip is silent for screen readers (a focused
+            control's name change is not reliably announced); this region says
+            what the flip shows. */}
+        <span role="status" className="sr-only">
+          {copiedId ? "Link copied." : ""}
+        </span>
         {sources.length === 0 ? (
           <p className="px-4 text-muted-foreground">No sources yet.</p>
         ) : (
@@ -471,6 +517,14 @@ function SourcesCard({ sources }: { sources: SourceItem[] }) {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="flex justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title={source.url}
+                          onClick={() => void copyLink(source)}
+                        >
+                          {copiedId === source.source_id ? "Copied" : "Copy link"}
+                        </Button>
                         <Button
                           size="sm"
                           disabled={toggle.isPending}
