@@ -415,6 +415,111 @@ the `claim_asserted` view, not in prompts).
   by `/api/documents`). Queue counts appear in `/api/status` as
   `counts.asr_jobs`.
 
+- **LLM engine hardening (2026-08-20, build spec v6 —
+  `docs/build-spec-v6-llm-hardening.md`; commits 9d31926 + 2dd8701; Filter
+  reference pinned at `~/CAF/Filter`
+  a3418c0c8081e7745364dd87eb2b72b6011158d4):**
+
+  *The incident this fixes (2026-08-20, production).* 8 of 19 documents
+  (5 SemiAnalysis Substack posts, 3 FT pieces) ended `extracted`,
+  attempts 0, no error, with a done summary — and zero claim AND zero
+  mention rows. Reproduced live: the model answered the extract prompt
+  with a top-level JSON **array** of claims; `_extract_json` took the
+  first `{`, decoded one claim object, `.get("mentions")` found neither
+  key, and the event was marked extracted with nothing written. All five
+  Substack posts (12.6-63.5 KB, each longer than any document that had
+  ever produced claims) failed this way structurally; the three FT
+  empties were transient.
+
+  1. *Structured output (§2):* `graph/schemas.py` holds a hand-written,
+     AJV-strictified JSON schema per LLM stage; `llm.complete_json(...,
+     schema=, system=)` passes it as `ClaudeAgentOptions.output_format`
+     and the CLI enforces it server-side, returning a parsed object — no
+     re-prompt retry on that path (the CLI already retried). All seven
+     call sites split static prompt file → system turn, per-item payload
+     → user turn (the only shape that can get CLI prefix-cache reuse; it
+     also separates instructions from fetched text). `thinking` pinned to
+     adaptive. The api engine is untouched (legacy, never extended).
+  2. *Extraction guards (§3):* zero mentions AND zero claims raises
+     ("empty extraction"); all claims dropped by validation raises; the
+     connector header is split off (`summarize.split_artifact`), a
+     one-line `title — source, date` context is prepended, the body is
+     capped at 80k with an `extract_truncated` meta flag; claims and
+     summaries carry the transport's **resolved** model id
+     (`llm.last_call_info()`), not the config alias. The structured turn
+     gets a 48k output budget (2dd8701): a dense document emits its whole
+     envelope in one schema-enforced turn, and 16000 killed the four
+     largest posts with "response exceeded the 16000 output token
+     maximum" — the same cap the old text path hit as silent mid-stream
+     truncation.
+  3. *Seat engine (§4):* the SDK's RateLimitEvent `rejected` flag is the
+     primary quota signal (the regex over CLI prose is the fallback — it
+     has already missed twice, 2026-07-28 Filter and 2026-08-20 here);
+     text matching narrowed (result text only when `is_error`; auth only
+     on the literal CLI strings, so a document about rate limits or a TLS
+     error phrased "authentication" can never kill a seat);
+     `resets_at`-driven re-arm with a 30 s grace floored at latch time;
+     auth re-probes after 6 h (`CAF_VAULT_CC_AUTH_RETRY_PROBE_S`); latch
+     state mirrors into `app_kv` `seat_latches` and survives restarts;
+     per-call usage (tokens, cost, duration, resolved model, seat) lands
+     in a bounded log that `cli.stage()` drains into
+     `stage_run.summary.llm` — failed calls included, so "which stage
+     burned the weekly pool" is answerable; seat token values are
+     scrubbed to `<seat-token>` in every reason, exception and status;
+     `llm.validate_models` fails a `CAF_MODEL_*` typo at worker boot
+     instead of per-event; `seat_status()` gains `resets_at`/`retry_at`/
+     `utilization` and the dashboard seats card shows "resets 21 Aug,
+     03:00 UTC" for a latched seat.
+  4. *Error taxonomy (§5):* `llm.TransientError` (call timeout, process
+     death, transport teardown) burns no attempts or strikes anywhere:
+     extract and summarize record the message and move to the next item,
+     adjudicate returns `{"transient": 1}` leaving er_queue untouched,
+     the discovery stages write a history note that does not count toward
+     the two-strike park. Drains attempt each item at most once per drain
+     (exclude sets in `extract.run` AND `summarize.run` — the summarize
+     one came out of this build's adversarial review), so second strikes
+     land a cycle later, which is the intent of having two.
+  5. *Adjudicate (§7):* scalar decision fields are coerced before any
+     execute (object-valued `confidence`/`entity_hint` no longer kill the
+     cycle with `cannot adapt type 'dict'`); the ADJUDICATION schema
+     prevents recurrence at the source.
+
+  Verification. Local: 353 tests (new `tests/test_llm.py` on a
+  monkeypatched `claude_agent_sdk.query` seam modeled on Filter's,
+  `tests/test_schemas.py`, extract-guard/drain/adjudicate regressions);
+  adversarial review workflow (4 lenses, every finding attacked by
+  skeptics; both confirmed findings fixed pre-commit); real structured
+  calls through the dev CLI. Pre-deploy overlay on the box: stuck doc
+  874b495a extracted 59 mentions / 57 claims under the schema path
+  (counted, rolled back), FT e532eb43 31/26; seat 1's real quota wall
+  latched through the new path with rotation carrying both calls on
+  seat 2. Post-deploy (deploy-20260820-091238 carried v6;
+  deploy-20260820-182248 the 48k follow-up): the worker booted "seat 1
+  still latched from stored state (quota)" — the app_kv mirror surviving
+  the restart — and all 8 stuck documents were requeued and extracted
+  with real rows (mentions/claims: 109e0460 13/28, 14985ea0 21/45,
+  1774ee52 21/63, 874b495a 54/61, b5ee3047 57/73, c21ac0d4 46/48,
+  d5764998 12/24, e532eb43 32/30; no truncation flags; every claim's
+  `extractor` = the resolved `claude-sonnet-5`), `stage_run.summary.llm`
+  carries the rollup (final batch: 7 calls, 209,515 output tokens,
+  $4.31), and `/vault/api/status` seats show seat 1 latched with
+  `resets_at 2026-08-21T03:00:00Z` / `retry_at 03:00:30Z` while seats
+  2-3 carried the work.
+
+  *Overlay-verify procedure* (run new code against production state
+  before a deploy): ssh `alfred@34.126.95.106`; from the repo root
+  `COPYFILE_DISABLE=1 tar czf overlay.tgz <changed files>` (without
+  `COPYFILE_DISABLE` macOS tar adds `._*` AppleDouble files that break
+  things on the box); scp it over; inside the container
+  (`caf-caf-vault-worker-1`): copy `/app/graph` and `/app/schema` to
+  `/tmp/live/`, `docker cp` the tarball in, untar over `/tmp/live`, run
+  diagnostics with `PYTHONPATH=/tmp/live python`, remove `/tmp/live`
+  afterwards. Diagnostics print statuses, counts and names only — never
+  credential or token values — and any DB writes stay inside a
+  rolled-back transaction. One more scar: don't UPDATE event rows the
+  worker may hold in an open extract batch (deadlock); let the worker
+  finish, or requeue between cycles.
+
 ## What still needs building (recommended order)
 
 1. **Remaining design subsystems**: XBRL structured lane (§4.5), speaker
