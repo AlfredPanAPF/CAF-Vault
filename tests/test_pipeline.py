@@ -269,6 +269,33 @@ def test_extract_json_ignores_braces_inside_strings():
         llm._extract_json('{"a": 1')   # genuinely truncated
 
 
+def test_quota_pattern_latches_every_cli_phrasing():
+    """The seat must latch on every quota message the CLI has used; a missed
+    phrasing burns two attempts per item on a dead seat (2026-08-20: the
+    weekly-limit message matched nothing and production events went to
+    'failed' during a quota window)."""
+    quota = [
+        "You've hit your weekly limit · resets Aug 21, 3am (UTC)",
+        "You have hit your usage limit. Your limit resets at 3am (UTC).",
+        "Rate limit exceeded",
+        "rate-limited, retry later",
+        "Spend limit reached for this workspace",
+        "5-hour limit reached · resets 3am",
+        "You've hit your limit · resets September 1, 9am",
+    ]
+    for text in quota:
+        assert llm._QUOTA_PATTERN.search(text), text
+    # ordinary failures must not latch the seat
+    not_quota = [
+        "claude code call timed out after 1200s",
+        "no valid JSON after 2 attempts",
+        "The document discusses speed limits on highways",
+        "connection reset by peer",
+    ]
+    for text in not_quota:
+        assert not llm._QUOTA_PATTERN.search(text), text
+
+
 def test_health_and_unknown_api_path():
     client = TestClient(webapp.app)
     assert client.get("/health").json() == {"ok": True}

@@ -26,8 +26,15 @@ from datetime import datetime, timezone
 _SEMAPHORE = threading.Semaphore(
     int(os.environ.get("CAF_VAULT_CC_MAX_SUBPROCESSES", "2")))
 
+# Matches every quota phrasing the CLI has used. It changed once already —
+# "You've hit your weekly limit · resets Aug 21, 3am (UTC)" (2026-08-20,
+# production) matched none of the old alternatives, so the seat never
+# latched and extract/summarize burned two attempts per item on a dead
+# seat. "hit your … limit" and "resets <Month> <day>" cover that family.
 _QUOTA_PATTERN = re.compile(
-    r"rate.?limit|usage limit|spend limit|resets at", re.IGNORECASE)
+    r"rate.?limit|usage limit|spend limit|weekly limit"
+    r"|hit your .{0,30}limit|limit reached"
+    r"|resets at|resets \w{3,9}\.? \d", re.IGNORECASE)
 _AUTH_PATTERN = re.compile(
     r"authentication|unauthorized|oauth|please run /login|api key", re.IGNORECASE)
 
