@@ -30,6 +30,10 @@
   <dict>
     <key>PATH</key>
     <string>/Users/subways-sun/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <!-- launchd stdout is a file, so python would block-buffer it and the
+         log would trail reality by an episode; keep it live -->
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
   </dict>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>60</integer>
