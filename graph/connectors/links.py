@@ -138,7 +138,12 @@ def _youtube_video(con, row) -> dict:
     if not video_id:
         raise ValueError("That link has no video in it.")
     out = youtube.ingest_video(con, video_id,
-                               source_id=bucket_source(con, row["url"]))
+                               source_id=bucket_source(con, row["url"]),
+                               link_id=row["link_id"])
+    if out.get("queued"):
+        # remote ASR (build spec v7 §4): the transcript is on its way from
+        # the off-site agent; not a failure, and not this link's attempt
+        return out
     if out["event_id"] is None:
         raise RuntimeError(out["skip_reason"] or "No transcript.")
     return out
@@ -187,6 +192,12 @@ def process_one(con, link_id) -> dict:
         message = credentials.scrub(con, str(e))[:300]
         print(f"error {row['url']}: {message}")
         return _finish(con, link_id, "failed", error=message)
+    if out.get("queued"):
+        # the row stays queued, costs no attempt, and is resolved by
+        # asr_queue.complete() when the agent posts the transcript; until
+        # then each cycle's re-check is one select, not a download
+        return _finish(con, link_id, "queued", title=out.get("title"),
+                       count_attempt=False)
     status = "done" if out["is_new"] else "duplicate"
     return _finish(con, link_id, status, event_id=out["event_id"],
                    title=out.get("title"))

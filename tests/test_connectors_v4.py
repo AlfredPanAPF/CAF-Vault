@@ -610,8 +610,8 @@ def test_youtube_poll_writes_a_caption_transcript(con, monkeypatch):
 
     monkeypatch.setattr(fetch, "get", fake_get)
     out = youtube.poll(con)
-    assert out == {"new": 1, "duplicate": 0, "skipped": 0, "blocked": 0,
-                   "errors": 0}
+    assert out == {"new": 1, "duplicate": 0, "queued": 0, "skipped": 0,
+                   "blocked": 0, "errors": 0}
     ev = events_of(con, "youtube")[0]
     assert ev["meta"]["transcript_source"] == "captions"
     assert ev["meta"]["video_id"] == "VID12345678"

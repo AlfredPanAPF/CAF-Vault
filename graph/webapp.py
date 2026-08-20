@@ -13,19 +13,21 @@ Timestamps are ISO 8601 UTC. Run with `graph serve` (uvicorn graph.webapp:app).
 """
 import json
 import os
+import secrets
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import (Depends, FastAPI, File, Header, HTTPException, Response,
+                     UploadFile)
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg import errors as pg_errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import (artifacts, config, credentials, db, fetch, probes, router,
-               signin, staleness, watchlist)
+from . import (artifacts, asr_queue, config, credentials, db, fetch, probes,
+               router, signin, staleness, watchlist)
 from .connectors import links, manual
 from .pipeline import adjudicate, resolve, summarize
 
@@ -38,6 +40,19 @@ def get_con():
         yield con
     finally:
         con.close()
+
+
+def require_asr_token(x_caf_asr_token: str = Header(default="")):
+    """Gate on the /api/asr endpoints (build spec v7 §5): the header must
+    equal CAF_ASR_TOKEN. With the env unset the feature is off, not open —
+    every request is refused. Read per request so tests can set it."""
+    expected = os.environ.get("CAF_ASR_TOKEN") or ""
+    # bytes, not str: compare_digest raises TypeError on non-ASCII str, and
+    # Starlette decodes header bytes as latin-1 — a stray high byte in the
+    # header must be a 403, not a 500
+    if not expected or not secrets.compare_digest(
+            x_caf_asr_token.encode("utf-8"), expected.encode("utf-8")):
+        raise HTTPException(403, "Transcription requires the shared token.")
 
 
 def iso(v):
@@ -601,6 +616,18 @@ class SignInSubmitBody(BaseModel):
     password: str
 
 
+class AsrLeaseBody(BaseModel):
+    worker: str = ""
+
+
+class AsrCompleteBody(BaseModel):
+    text: str
+
+
+class AsrFailBody(BaseModel):
+    error: str = ""
+
+
 class ErDecisionBody(BaseModel):
     decision: str
     cik: int | None = None
@@ -681,6 +708,7 @@ def create_app():
             "hypotheses": group_counts(
                 con, "select state as k, count(*) n from hypothesis group by 1",
                 ("generated",)),
+            "asr_jobs": asr_queue.counts(con),
             "alerts_unread": con.execute(
                 "select count(*) n from alert where read_at is null"
             ).fetchone()["n"],
@@ -1768,6 +1796,66 @@ def create_app():
         credentials.record_check(con, site, ok, message)
         con.commit()
         return {"ok": ok, "message": message}
+
+    # ------------------------------------------- remote ASR queue (spec v7)
+    #
+    # The off-site agent's four endpoints. All are gated by the shared token
+    # (require_asr_token); job rows never carry credential material, and the
+    # audio endpoint serves only files inside the spool.
+
+    @app.post("/api/asr/lease", dependencies=[Depends(require_asr_token)])
+    def api_asr_lease(body: AsrLeaseBody, con=Depends(get_con)):
+        job = asr_queue.lease(con, body.worker or "unknown")
+        con.commit()
+        if job is None:
+            return Response(status_code=204)
+        return {"job_id": str(job["job_id"]), "connector": job["connector"],
+                "title": job["title"], "audio_url": job["audio_url"],
+                "audio": bool(job["audio_path"]), "attempts": job["attempts"]}
+
+    @app.get("/api/asr/jobs/{job_id}/audio",
+             dependencies=[Depends(require_asr_token)])
+    def api_asr_audio(job_id: uuid.UUID, con=Depends(get_con)):
+        job = asr_queue.get(con, job_id)
+        if job is None or job["status"] != "leased":
+            raise HTTPException(404, "No leased job with that id.")
+        path = asr_queue.spool_path(job)
+        if path is None:
+            raise HTTPException(404, "The job holds no audio file.")
+        return FileResponse(path, media_type="application/octet-stream")
+
+    @app.post("/api/asr/jobs/{job_id}/complete",
+              dependencies=[Depends(require_asr_token)])
+    def api_asr_complete(job_id: uuid.UUID, body: AsrCompleteBody,
+                         con=Depends(get_con)):
+        if not body.text.strip():
+            raise HTTPException(400, "The transcript is empty.")
+        job = asr_queue.get(con, job_id)
+        if job is None:
+            raise HTTPException(404, "No job with that id.")
+        if job["status"] == "done":
+            raise HTTPException(409, "The job is already completed.")
+        event_id, is_new = asr_queue.complete(con, job, body.text)
+        con.commit()
+        # only after the commit landed: a failed commit must not cost the
+        # job its only copy of the audio
+        asr_queue.cleanup_spool(job)
+        return {"event_id": str(event_id), "is_new": is_new}
+
+    @app.post("/api/asr/jobs/{job_id}/fail",
+              dependencies=[Depends(require_asr_token)])
+    def api_asr_fail(job_id: uuid.UUID, body: AsrFailBody,
+                     con=Depends(get_con)):
+        job = asr_queue.get(con, job_id)
+        if job is None:
+            raise HTTPException(404, "No job with that id.")
+        if job["status"] == "done":
+            raise HTTPException(409, "The job is already completed.")
+        status = asr_queue.fail(con, job, body.error)
+        con.commit()
+        if status == "error":
+            asr_queue.cleanup_spool(job)
+        return {"status": status, "attempts": job["attempts"]}
 
     # ---------------------------------------------- sign in from the browser
     #

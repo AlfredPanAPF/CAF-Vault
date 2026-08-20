@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Off-site transcription agent (build spec v7 §6). Install:
+       cp docs/com.caf.vault-asr.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.caf.vault-asr.plist
+     Prerequisites on this Mac: the repo checkout at the path below, uv on
+     ~/.local/bin, ffmpeg on /opt/homebrew/bin, an SSH key authorized for
+     the server, and the shared token in ~/.caf/vault-asr-token (mode 600,
+     same value as CAF_ASR_TOKEN in the server's ~/CAF/.env). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.caf.vault-asr</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/subways-sun/.local/bin/uv</string>
+    <string>--directory</string>
+    <string>/Users/subways-sun/Projects/CAF-Vault</string>
+    <string>run</string>
+    <string>python</string>
+    <string>-m</string>
+    <string>graph.asr_agent</string>
+    <string>--ssh</string>
+    <string>alfred@34.126.95.106</string>
+    <string>--token-file</string>
+    <string>/Users/subways-sun/.caf/vault-asr-token</string>
+    <string>--poll</string>
+    <string>120</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/subways-sun/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>60</integer>
+  <key>StandardOutPath</key><string>/Users/subways-sun/Library/Logs/caf-vault-asr.log</string>
+  <key>StandardErrorPath</key><string>/Users/subways-sun/Library/Logs/caf-vault-asr.log</string>
+</dict>
+</plist>

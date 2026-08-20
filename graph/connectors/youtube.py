@@ -22,7 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from psycopg.types.json import Jsonb
 
-from .. import credentials, db, envelope, fetch
+from .. import asr_queue, config, credentials, db, envelope, fetch
 from . import podcast
 
 FEED_CHANNEL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
@@ -252,9 +252,20 @@ def transcript(video_id: str, con=None):
             info["skip_reason"] = "No captions, and the audio did not download."
             return "", None, info
         audio = max(files, key=lambda f: f.stat().st_size)
+        info = got or info
+        if engine == "remote":
+            # build spec v7 §4: audio is downloaded here (cookies stay
+            # server-side) and parked in the spool before the tempdir goes.
+            # Named by video id, not job id, so the caller's enqueue needs no
+            # post-insert rename — there is no crash window between a job row
+            # and its file
+            config.ASR_SPOOL.mkdir(parents=True, exist_ok=True)
+            parked = config.ASR_SPOOL / f"{video_id}{audio.suffix}"
+            shutil.move(str(audio), str(parked))
+            info["asr_audio_path"] = str(parked)
+            return "", "remote", info
         print(f"transcribing ({engine}): {video_id}")
         text = podcast.transcribe(audio, engine)
-        info = got or info
         return text, "whisper", info
 
 
@@ -312,6 +323,32 @@ def document(entry: dict, text: str, info: dict) -> str:
             f"# duration: {duration}s\n---\n{text}\n")
 
 
+def queue_remote(con, source_id, entry: dict, info: dict,
+                 feed: str | None = None, link_id=None):
+    """Enqueue one no-captions video for the off-site agent (build spec v7
+    §4); transcript() already parked the audio in the spool under the video
+    id. Returns the job_id, or None when the video is already queued (the
+    parked file is removed then). `link_id` ties the job to a link_queue row
+    so completion resolves the link."""
+    parked = Path(info["asr_audio_path"])
+    meta = {"video_id": entry["video_id"], "item_url": entry["url"],
+            "channel": entry.get("channel") or info.get("channel") or "",
+            "title": entry["title"],
+            "duration_s": int(info.get("duration") or 0),
+            "transcript_source": "whisper"}
+    meta.update({"feed": feed} if feed else {"site": "youtube"})
+    # document() with empty text ends "---\n\n"; dropping the last newline
+    # leaves the exact header the inline path writes before the transcript
+    doc_prefix = document(entry, "", info)[:-1]
+    job_id = asr_queue.enqueue(
+        con, source_id, "youtube", entry["video_id"], title=entry["title"],
+        published_at=entry.get("published") or None, doc_prefix=doc_prefix,
+        event_meta=meta, audio_path=str(parked), link_id=link_id)
+    if job_id is None:
+        parked.unlink(missing_ok=True)
+    return job_id
+
+
 def _remember_skip(con, source_id, skipped: list, video_id: str) -> list:
     """Add one video to the source's skip list, newest last, and keep the last
     200. Insertion order matters: sorting the list before the cap would keep
@@ -328,8 +365,10 @@ def _remember_skip(con, source_id, skipped: list, video_id: str) -> list:
 def poll(con, per_source=None):
     """Poll active youtube source rows: newest N videos per channel/playlist
     that are not already events, each as a transcript document."""
-    counts = {"new": 0, "duplicate": 0, "skipped": 0, "blocked": 0, "errors": 0}
+    counts = {"new": 0, "duplicate": 0, "queued": 0, "skipped": 0,
+              "blocked": 0, "errors": 0}
     limit = per_source or per_cycle()
+    remote = podcast.asr_engine() == "remote"
     sources = con.execute(
         "select source_id, name, url, config from source "
         "where connector='youtube' and status='active' order by name").fetchall()
@@ -370,6 +409,16 @@ def poll(con, per_source=None):
                            (entry["video_id"],)).fetchone():
                 counts["duplicate"] += 1
                 continue
+            job = asr_queue.get_external(con, "youtube", entry["video_id"])
+            if remote and job is not None:
+                # queued (or terminally failed) for the off-site agent —
+                # never re-download the audio for it (build spec v7 §4)
+                continue
+            if (not remote and job is not None
+                    and job["status"] in ("pending", "leased")):
+                # a local engine while the agent still owns the video:
+                # transcribing here too would double-ingest it (§4)
+                continue
             todo.append(entry)
             if len(todo) >= limit:
                 break
@@ -384,6 +433,11 @@ def poll(con, per_source=None):
             except Exception as e:
                 print(f"error {name} '{entry['title']}': {e}")
                 counts["errors"] += 1
+                continue
+            if source_kind == "remote":
+                if queue_remote(con, src["source_id"], entry, info or {},
+                                feed=name):
+                    counts["queued"] += 1
                 continue
             if not source_kind or not text.strip():
                 reason = (info or {}).get("skip_reason") or "No transcript."
@@ -414,15 +468,42 @@ def _note_error(con, source_id, message: str) -> None:
                 "where source_id=%s", (message, source_id))
 
 
-def ingest_video(con, video_id: str, source_id=None) -> dict:
+def ingest_video(con, video_id: str, source_id=None, link_id=None) -> dict:
     """One video into an event, for the one-off link queue (§6.3). Returns
-    {event_id, is_new, title, published, skip_reason}."""
+    {event_id, is_new, title, published, skip_reason} — plus queued=True
+    while the off-site agent owns the video (build spec v7 §4)."""
+    if podcast.asr_engine() == "remote":
+        # the link queue re-runs waiting rows every cycle; consult the job
+        # before any yt-dlp work so those cycles cost one query, not a
+        # full audio download
+        job = asr_queue.get_external(con, "youtube", video_id)
+        if job is not None:
+            title = job["title"] or video_id
+            if job["status"] == "done":
+                return {"event_id": job["event_id"], "is_new": False,
+                        "title": title, "published": job["published_at"] or "",
+                        "skip_reason": None}
+            if job["status"] == "error":
+                return {"event_id": None, "is_new": False, "title": title,
+                        "published": job["published_at"] or "",
+                        "skip_reason": "Transcription failed."}
+            return {"event_id": None, "is_new": False, "title": title,
+                    "published": job["published_at"] or "", "queued": True,
+                    "skip_reason": "Queued for transcription."}
     text, source_kind, info = transcript(video_id, con)
     info = info or {}
     entry = {"video_id": video_id, "title": info.get("title") or video_id,
              "published": _upload_date(info),
              "channel": info.get("channel") or info.get("uploader") or "",
              "url": WATCH_URL.format(video_id)}
+    if source_kind == "remote":
+        if source_id is None:
+            source_id = db.get_or_create_source(con, "link:youtube.com", "link",
+                                                url=None, is_internal=False)
+        queue_remote(con, source_id, entry, info, link_id=link_id)
+        return {"event_id": None, "is_new": False, "title": entry["title"],
+                "published": entry["published"], "queued": True,
+                "skip_reason": "Queued for transcription."}
     if not source_kind or not text.strip():
         return {"event_id": None, "is_new": False, "title": entry["title"],
                 "published": entry["published"],

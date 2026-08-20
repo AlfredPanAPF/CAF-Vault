@@ -2,8 +2,9 @@
 
 ASR engine is picked via CAF_ASR: "auto" (default; mlx on Apple Silicon,
 faster-whisper elsewhere), "mlx" (uvx mlx-whisper subprocess), "faster-whisper"
-(python API, CPU int8 large-v3; model cache honors HF_HOME), or "off" (skip
-podcast ingestion entirely, with a log line).
+(python API, CPU int8 large-v3; model cache honors HF_HOME), "off" (skip
+podcast ingestion entirely, with a log line), or "remote" (build spec v7:
+enqueue episodes for the off-site agent instead of transcribing here).
 
 No diarization in v0 — transcripts are plain text. The design's
 speakers-are-entities step needs pyannote later.
@@ -20,7 +21,7 @@ from pathlib import Path
 
 import requests
 
-from .. import envelope
+from .. import asr_queue, envelope
 
 # Seed data only: `graph seed` upserts these as source rows (connector
 # 'podcast', name 'podcast:<feed>'); poll() reads the DB, never this dict.
@@ -111,7 +112,7 @@ def transcribe(mp3: Path, engine: str | None = None) -> str:
 def poll(con, feeds=None, episodes_per_feed=2):
     """Poll active podcast source rows. `feeds` optionally restricts to those
     feed names (source name minus the 'podcast:' prefix)."""
-    counts = {"new": 0, "duplicate": 0, "errors": 0}
+    counts = {"new": 0, "duplicate": 0, "queued": 0, "errors": 0}
     engine = asr_engine()
     if engine == "off":
         print("podcast poll: CAF_ASR=off — skipping podcast ingestion")
@@ -137,6 +138,26 @@ def poll(con, feeds=None, episodes_per_feed=2):
             if con.execute("select 1 from event where meta->>'enclosure_url'=%s limit 1",
                            (enc_url,)).fetchone():
                 counts["duplicate"] += 1
+                continue
+            job = asr_queue.get_external(con, "podcast", enc_url)
+            if engine == "remote":
+                if job is not None:
+                    continue
+                # build spec v7 §4: the agent downloads the enclosure itself;
+                # the stored prefix is byte-identical to the inline doc header
+                prefix = (f"# title: {title}\n# source_type: podcast\n"
+                          f"# published: {date}\n# feed: {feed}\n---\n")
+                if asr_queue.enqueue(
+                        con, source_id, "podcast", enc_url, title=title,
+                        published_at=date or None, doc_prefix=prefix,
+                        event_meta={"feed": feed, "title": title,
+                                    "enclosure_url": enc_url},
+                        audio_url=enc_url):
+                    counts["queued"] += 1
+                continue
+            if job is not None and job["status"] in ("pending", "leased"):
+                # a local engine while the agent still owns the episode:
+                # transcribing here too would double-ingest it (spec v7 §4)
                 continue
             try:
                 with tempfile.TemporaryDirectory() as tmp:

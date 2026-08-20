@@ -390,6 +390,29 @@ the `claim_asserted` view, not in prompts).
   proven on the box: after deploy, paste the URL on `/vault/sources` and
   watch a cycle.
 
+- **Remote ASR — whisper runs off-site, not on the box (build spec v7).**
+  Measured first (2026-08-19, one real Unhedged episode): the server manages
+  faster-whisper `small` at 1.1x realtime while monopolizing its single
+  physical core; an M4 Mac mini runs mlx `large-v3-turbo` at ~16x realtime.
+  So `CAF_ASR=remote` makes the worker enqueue instead of transcribe
+  (`asr_job` table, migration 014): podcasts as enclosure URLs the agent
+  downloads itself, YouTube audio pre-downloaded server-side (cookies never
+  leave) into `/data/asr_spool`. Four token-gated endpoints under `/api/asr`
+  (header `X-CAF-ASR-Token` = `CAF_ASR_TOKEN`; unset = everything 403) serve
+  lease / audio / complete / fail with lease expiry, retry backoff
+  (`not_before`), and a 3-attempt terminal state. `asr_queue.complete()`
+  rebuilds the exact inline document from the stored `doc_prefix`, so a
+  remote transcript is byte-identical (proved by an envelope-dedup test) and
+  downstream cannot tell the difference. The agent
+  (`uv run python -m graph.asr_agent --ssh alfred@34.126.95.106`) runs on the
+  owner's Mac mini from this checkout via launchd
+  (`com.caf.vault-asr.plist`), reaching the server's loopback :8600 through
+  an SSH tunnel it manages itself — no new ingress. Verified: 16 new tests,
+  full suite green, and a live e2e on the dev Mac (real feed → queued job →
+  real agent → real mlx transcription, 4,129 words in 96s → document served
+  by `/api/documents`). Queue counts appear in `/api/status` as
+  `counts.asr_jobs`.
+
 ## What still needs building (recommended order)
 
 1. **Remaining design subsystems**: XBRL structured lane (§4.5), speaker
@@ -414,8 +437,9 @@ set, every LLM stage pauses cleanly and the heuristic stages keep running.
 ## Hard-won operational knowledge
 
 - The box froze once: whisper large-v3 on 2 CPU cores, no swap. Caps are in
-  compose; keep them. ASR stays off until the team opts in
-  (`CAF_VAULT_ASR=faster-whisper`, model default `small`).
+  compose; keep them. The box must never transcribe again: ASR is either off
+  or `CAF_VAULT_ASR=remote` (build spec v7 — the Mac mini agent does the
+  work; `faster-whisper` on-box remains possible but is a last resort).
 - `nginx.conf` is a single-file bind mount: git checkout swaps the inode and
   the running container keeps the old config through reloads. The deploy now
   hash-compares container vs disk and force-recreates on drift.

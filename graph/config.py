@@ -33,6 +33,14 @@ SUMMARIZE_PER_CYCLE = int(os.environ.get("CAF_VAULT_SUMMARIZE_PER_CYCLE", "30"))
 SUMMARY_MIN_CHARS = 600
 SUMMARY_MAX_CHARS = 80000
 
+# remote ASR (build spec v7): where the worker spools server-downloaded audio
+# for the off-site agent (prod: /data/asr_spool on the shared volume), how
+# long one lease lasts, and how many attempts before a job is terminal.
+ASR_SPOOL = Path(os.environ.get("CAF_ASR_SPOOL", str(ARTIFACTS.parent / "asr_spool")))
+ASR_LEASE_MINUTES = int(os.environ.get("CAF_ASR_LEASE_MINUTES", "60"))
+ASR_MAX_ATTEMPTS = int(os.environ.get("CAF_ASR_MAX_ATTEMPTS", "3"))
+ASR_RETRY_MINUTES = int(os.environ.get("CAF_ASR_RETRY_MINUTES", "15"))
+
 # edge decay half-lives in days by predicate keyword (design §9); None = structural
 HALF_LIFE_RULES = [
     ({"own", "subsidiary", "parent", "incorporat", "headquarter", "listed",
